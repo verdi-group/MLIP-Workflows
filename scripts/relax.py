@@ -1,89 +1,46 @@
-config = { # we assume that they provide the supercell to be analysed,
-    'calculators': ['chgnet', 'pet-mad', 'orb', 'small-omat-0'], # the list of calculators to perform calculations on. #TODO: supply a full comprehensive list of every single calculator that is possible for calculations (like including various mace models as an example), this is for the user, then let the user comment out the calculators they dont want. 
-    'diamond': { 
-        'filepath': r'/home/rnpla/projects/mlip_phonons/structures/diamond_super.poscar',
-        'relaxed': {
-            'is_file_relaxed': False, # if the input file is not relaxed supply following config, if not, leave as None
-            'fmax': 0.01, # maximum intermolecular force for relaxed structure
-        },
-        'delta': 0.01 # how far (in Å) each atom is nudged when ASE estimates second derivatives of the potential.
-    },
-    'nv_diamond': {
-        'filepath': r'/home/rnpla/projects/mlip_phonons/structures/diamond_nv.poscar',
-        'relaxed': {
-            'is_file_relaxed': False, 
-            'fmax': 0.01,
-        },
-        'delta': 0.01,
-    }
-    'hbn': {
-        'filepath: r''
-    }
-    
-        
-    }
-}
+from pathlib import Path
+from ase import Atoms
+from ase.optimize import BFGS
 
+#TODO: if file was saved, append to the "Relaxation complete" string "{filename}" was saved to <directory>
+def relax(structure: Atoms, 
+          fmax: float = 0.01, 
+          outdir: Path | None = None, 
+          filename: str | None = None):
+    """Relax an ASE Atoms structure with BFGS. Will overwrite files. 
 
+    input:
+        structure: ASE Atoms object to relax (modified in place).
+        fmax: Maximum force criterion for convergence.
+        outdir: Directory to write a trajectory file into.
+        filename: Trajectory filename to use when outdir is provided. filename should include extension: .traj
 
-# ———————————— PARAMETERS
-calculator = "chgnet" #"pet-mad" #"orb" #"small-omat-0" # from mace_mp
-"""c
-import ase
-from ase.build import bulk
+    output:
+        relaxed atoms object.
+    """
+    saved_outdir = None
 
-from orb_models.forcefield import pretrained
-from orb_models.forcefield.calculator import ORBCalculator
+    if outdir is not None:
+        if filename is not None:
+            outdir = Path(outdir)
+            outdir.mkdir(parents = True, exist_ok = True)
 
-device="cpu" # or device="cuda"
-# or choose another model using ORB_PRETRAINED_MODELS[model_name]()
-orbff = pretrained.orb_v3_conservative_inf_omat(
-  device=device,
-  precision="float32-high",   # or "float32-highest" / "float64
-)
-calc = ORBCalculator(orbff, device=device)
-atoms = bulk('Cu', 'fcc', a=3.58, cubic=True)
+            name = str(filename)
+            trajectory = outdir / name
+            saved_outdir = outdir
 
-atoms.calc = calc
-atoms.get_potential_energy()
-"""
+            opt = BFGS(structure, trajectory=str(trajectory))
+        else:
+            pass
+    else: 
+        opt = BFGS(structure)
 
-# ————————————————————————
+    opt.run(fmax=fmax)
 
-def get_calc_object():
-    if calculator == "small-omat-0":
-        from mace.calculators import mace_mp
-        calc = mace_mp(model=calculator, device="cuda", default_dtype="float64")
-    if calculator == "mattersim":
-        from mattersim.forcefield import MatterSimCalculator
-        calc = MatterSimCalculator(device="cuda")
-    if calculator == "orb": 
-        from orb_models.forcefield import pretrained
-        from orb_models.forcefield.calculator import ORBCalculator
+    message = "Relaxation complete."
+    if saved_outdir is not None:
+        message += f' "{filename}" was saved to {saved_outdir}'
+    print(message)
 
-        device="cuda"
-        # or choose another model using ORB_PRETRAINED_MODELS[model_name]()
-        orbff = pretrained.orb_v3_conservative_inf_omat(
-        device=device,
-        precision="float32-high",   # or "float32-highest" / "float64
-        )
-        calc = ORBCalculator(orbff, device=device)
-        print("using Orb calculator")
-    if calculator == "pet-mad":
-        from upet.calculator import UPETCalculator
-        calc = UPETCalculator(model="pet-mad-s", version="1.1.0", device="cpu", non_conservative=True)
-        print("using pet-mad calculator")
-    if calculator == "chgnet":
-        from chgnet.model.dynamics import CHGNetCalculator
-        calc = CHGNetCalculator()
-        print("using chgnet calc")
-    return calc
+    return structure
 
-mlip_calc = get_calc_object()
-supercell.calc = mlip_calc
-
-opt = BFGS(supercell, trajectory='defect_relax.traj') # trajectory will store the path of the optimisation if you want 
-# to store that.
-print(type(opt))
-opt.run(fmax=0.01)  # fmax=0.01 is a good standard for phonons
-print("Relaxation complete")

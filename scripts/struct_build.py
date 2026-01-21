@@ -26,23 +26,23 @@ warnings.filterwarnings(
 
 # This script just simply constructs our unrelaxed atoms models. 
 # ———————————— PARAMETERS
-material = 'hbn_c2' # could be diamond, nv_diamond, hbn, hbn_c2
+material = 'nv_diamond' # could be diamond, nv_diamond, hbn, hbn_c2
 # note that hbn and hbn_c2 are both bulk.
 
 # ————————————————————————
 
 def place_nv_diamond(atoms):
-    # 1. Grab scaled positions and symbols
+    # Grab scaled positions and symbols
     frac = atoms.get_scaled_positions(wrap=True)
     symbols = np.array(atoms.get_chemical_symbols())
     c_inds = np.where(symbols == 'C')[0]
     
-    # 2. Identify the Carbon closest to the center to be our Nitrogen
+    # Identify closest carbon to the center to be our Nitrogen
     dm = frac[c_inds] - 0.5
     dm -= np.round(dm)
     n_idx = c_inds[np.argmin(np.linalg.norm(dm, axis=1))]
     
-    # 3. Find its nearest neighbor to become the Vacancy
+    # Find its nearest neighbor to become the Vacancy
     # get_distances is much cleaner than manual norm for bulk
     dists = atoms.get_distances(n_idx, c_inds, mic=True)
     
@@ -50,7 +50,6 @@ def place_nv_diamond(atoms):
     dists[c_inds == n_idx] = np.inf
     v_idx = c_inds[np.argmin(dists)]
     
-    # 4. Apply changes
     atoms[n_idx].symbol = 'N'
     # Use pop for the vacancy so the index shifts are handled by ASE
     atoms.pop(v_idx)
@@ -69,7 +68,7 @@ def place_cc_dimer_hbn(atoms):
     dm -= np.round(dm) # Minimum Image Convention 
     iB = b_inds[np.argmin(np.linalg.norm(dm, axis=1))]
     
-    # 3. Find the closest Nitrogen in the same plane
+    # Find the closest Nitrogen in the same plane
     n_inds = np.where(symbols == 'N')[0]
     # Filter for same z-layer
     same_layer = n_inds[np.isclose(frac[n_inds, 2], frac[iB, 2], atol=1e-4)]
@@ -80,7 +79,6 @@ def place_cc_dimer_hbn(atoms):
     d_cart = d_bn @ atoms.cell
     iN = same_layer[np.argmin(np.linalg.norm(d_cart, axis=1))]
     
-    # 4. Swap to Carbon
     atoms[iB].symbol = 'C'
     atoms[iN].symbol = 'C'
     
@@ -97,11 +95,11 @@ def get_material():
         # we have a poscar file for this however it is inbuilt.
         #atoms = read(r"C:\Users\rnpla\Desktop\2026\mlip_phonons\input_files\C.poscar")
         print(atoms)
-        supercell_matrix = np.diag([2,2,2])
+        supercell_matrix = np.diag([3,3,3])
         supercell = make_supercell(atoms, supercell_matrix)
     elif material == 'nv_diamond':
         atoms = bulk('C', 'diamond', a=3.567)
-        supercell_matrix = np.diag([2,2,2])
+        supercell_matrix = np.diag([3,3,3])
         supercell = make_supercell(atoms, supercell_matrix)
         supercell = place_nv_diamond(supercell)
         supercell = supercell[np.argsort(supercell.get_chemical_symbols())]
@@ -128,16 +126,15 @@ def get_material():
     return atoms, supercell, supercell_matrix
 
 atoms, supercell, supercell_matrix = get_material()
-
+pure_supercell = make_supercell(atoms, supercell_matrix)
 view(supercell)
 
 if material == 'nv_diamond':
-    pure_supercell = make_supercell(atoms, np.diag([2,2,2]))
-    write("/home/rnpla/projects/mlip_phonons/structures/diamond_nv.poscar", supercell)
-    write("/home/rnpla/projects/mlip_phonons/structures/diamond_primitive.poscar", atoms)
-    write("/home/rnpla/projects/mlip_phonons/structures/diamond_super.poscar", pure_supercell)
+    #write("/home/rnpla/projects/mlip_phonons/assets/structures/diamond_nv.poscar", supercell)
+    write("/home/rnpla/projects/mlip_phonons/assets/structures/diamond_primitive.poscar", atoms)
+    write("/home/rnpla/projects/mlip_phonons/assets/structures/diamond_super.poscar", pure_supercell)
 elif material == 'hbn_c2':
-    write("/home/rnpla/projects/mlip_phonons/structures/hbn_c2.poscar", supercell)
-    write("/home/rnpla/projects/mlip_phonons/structures/hbn_primitive.poscar", atoms)
-    write("/home/rnpla/projects/mlip_phonons/structures/hbn_super.poscar", pure_supercell)
+    write("/home/rnpla/projects/mlip_phonons/assets/structures/hbn_c2.poscar", supercell)
+    write("/home/rnpla/projects/mlip_phonons/assets/structures/hbn_primitive.poscar", atoms)
+    write("/home/rnpla/projects/mlip_phonons/assets/structures/hbn_super.poscar", pure_supercell)
 
