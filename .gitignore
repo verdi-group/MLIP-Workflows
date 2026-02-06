@@ -28,14 +28,18 @@ venv/
 *.h5
 *.pth
 *.npz
+*.ckpt
+*.pth
+
 .cache/
 
 # Ignore Results and model cache as well:
-assets/models/**
-results/**
+#assets/models/**
+#results/**
 
 # Forgot to let it ignore the structures:
-assets/models/structures/**
+*.poscar
+
 
 # forgot to block the data files. Keep the input files. 
 *.png
