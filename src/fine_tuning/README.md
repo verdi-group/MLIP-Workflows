@@ -1,5 +1,7 @@
 # Fine-Tuning (MACE) From VASP NEB OUTCAR
 
+(very new. needs work when more techniques are introduced)
+
 This folder contains a minimal pipeline to fine-tune a MACE foundation model on VASP NEB
 image outputs (OUTCAR/OUTCAR.gz).
 
@@ -41,7 +43,7 @@ Run the saved command script:
 ./src/fine_tuning/train_ivac0_neb.sh
 ```
 
-To validate arguments without training:
+To check arguments without training:
 
 ```bash
 ./src/fine_tuning/train_ivac0_neb.sh --dry_run

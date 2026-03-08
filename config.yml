@@ -1,6 +1,5 @@
 
-# ════════════════════════════════════════════════════════════════════════
-# Executive parameters
+# Executive parameters essentially ignore these. for now. 
 executive:
   plots: True
   default_name_templates: # Names for every kind of file. 
@@ -33,18 +32,19 @@ paths:
   structures_root: assets/structures
 
 phonon_coupling:
-  contcar_gs: test/CBVN/CONTCAR_GS
-  contcar_es: test/CBVN/CONTCAR_ES
-  band_dft_path: test/CBVN/band.yaml
-  q_tol: 1e-4
-  lattice_tol: 1e-5
-  threshold: 0.9
-  freq_cluster_tol: 0.5
-  freq_window: 0.5
-  remove_mass_weighted_com: true
-  gamma_only: true
-  alpha: 1.3
-  weight_kind: S
+  contcar_gs: test/CBVN/CONTCAR_GS  # Ground-state CONTCAR/POSCAR; start of the GS->ES displacement vector dq.
+  contcar_es: test/CBVN/CONTCAR_ES  # Excited-state CONTCAR/POSCAR; end of the GS->ES displacement (atom order must match GS).
+  band_dft_path: test/CBVN/band.yaml  # Reference DFT Phonopy band.yaml; supplies the q-points, frequencies, and eigenvectors every MLIP is scored against.
+  # Optional override: set `band_ml_paths` explicitly; if omitted, phonon_coupling.py uses every `results/**/band.yaml` it can find.
+  q_tol: 1e-4  # Maximum q-point distance allowed when picking Gamma and when matching each DFT q-point to an ML q-point.
+  lattice_tol: 1e-5  # Maximum allowed elementwise GS/ES lattice mismatch before the dq construction aborts.
+  threshold: 0.9  # Cumulative DFT weight cutoff tau; keep the smallest set of modes/clusters whose total weight reaches at least this value.
+  freq_cluster_tol: 0.5  # Frequency gap threshold for clustering modes; a larger gap than this starts a new DFT cluster/eigenspace.
+  freq_window: 0.5  # Extra frequency padding around each DFT cluster, so ML modes in [fmin-freq_window, fmax+freq_window] are compared to that cluster.
+  remove_mass_weighted_com: true  # Subtract the mass-weighted center-of-mass translation from GS->ES before scoring, so rigid translation does not dominate acoustic modes.
+  gamma_only: true  # If true, only score the q-point nearest Gamma; if false, score all unique DFT q-points and match each one to ML within q_tol.
+  alpha: 1.3  # Weight on eigenvector mismatch in the final dQ score: Score = E_freq + alpha * E_vec.
+  weight_kind: S  # DFT mode-weighting used in the ranking: p=|a|^2, S=|omega||a|^2, lambda=|omega|^2|a|^2.
 
 mlip_phonons:
   defaults:
@@ -53,33 +53,39 @@ mlip_phonons:
 
 neb:
   defaults:
-    model_name: ivac0_neb_ft
-    results_root: resultsNEBvdw_3bdy_rlxd2_1
-    models_root: assets/models
-    structures_dir: assets/structures/NEB
-    poscar_i: assets/structures/NEB/POSCAR_i
-    poscar_f: assets/structures/NEB/POSCAR_f
-    dft_neb_dat: assets/structures/NEB/neb.dat
-    vasp_inputs_dir: null
-    relax_endpoints: true
-    remap_f_i: false
-    include_vdw: true
-    overwrite: false
-    device: cuda
-    dtype: float32
+    model_name: ivac0_neb_ft  # Default CLI model name used when `mlip-neb` is run without a positional model argument.
+    results_root: resultsNEB  # Base output directory for NEB runs; if it already exists and `overwrite` is false, a suffixed sibling is created instead.
+    models_root: assets/models  # Root directory passed to `get_calc_object` to locate the MLIP checkpoint/weights for `model_name`.
+    #(can also be the actual folder the model is in, it is just left like this so that, in general, when you have several model families, 
+    #one #does not need a crap tonne of conditionals for listing various models_root just to operate several #families of models)
+
+    structures_dir: assets/structures/NEB  # Fallback folder used to derive `poscar_i`, `poscar_f`, and `dft_neb_dat` when those paths are omitted.
+    poscar_i: assets/structures/NEB/POSCAR_i  # Initial endpoint structure; becomes image 0 after optional endpoint relaxation.
+    poscar_f: assets/structures/NEB/POSCAR_f  # Final endpoint structure; can be atom-remapped before interpolation and optionally relaxed.
+    dft_neb_dat: assets/structures/NEB/neb.dat  # Optional DFT reference `neb.dat`; used to infer image count and later compare MLIP paths against DFT.
+    vasp_inputs_dir: null  # Optional directory containing `INCAR`, `KPOINTS`, and `POTCAR` to copy into the exported `vasp_mlip_d3/` and `vasp_ci/` folders.
+
+    # (i obviously cannot create the INCAR, KPOINTS, or POTCAR, #it only creates the 00, 01, 02 etc subfolders)
+    relax_endpoints: true  # If true, relax the two endpoint structures with the chosen calculator before building the interpolated NEB path.
+    remap_f_i: false  # If true, reorder the final endpoint within each species by Hungarian matching so atoms map more cleanly onto the initial endpoint.
+    include_vdw: true  # If true, use the dispersion-corrected calculator where available and run the extra MLIP+D3 refinement stage before climbing-image NEB.
+    overwrite: false  # If true, reuse `results_root`; if false, keep old runs by writing to `results_root_1`, `results_root_2`, and so on.
+    device: cuda  # Requested device string for the MLIP calculator; `cuda*` automatically falls back to CPU if CUDA is unavailable.
+    dtype: float32  # Numeric precision string passed into the MLIP calculator factory.
   settings:
-    n_images_fallback: 9
-    maxstep_mlip_guess: 0.05
-    fmax_mlip_guess: 0.03
-    steps_mlip_guess: 3000
-    k_spring_mlip: 0.6
-    k_spring: 0.6
-    maxstep_mlip_d3: 0.03
-    fmax_mlip_d3: 0.03
-    steps_mlip_d3: 1400
-    maxstep_ci: 0.03
-    fmax_ci: 0.03
-    steps_ci: 1000
+    # Internal NEB schedule: coarse MLIP path -> optional MLIP+D3 refinement -> climbing-image refinement.
+    n_images_fallback: 9  # Total number of NEB images (including endpoints) if `--n-images` is unset and `dft_neb_dat` is missing or unreadable.
+    maxstep_mlip_guess: 0.05  # FIRE `maxstep` for the first coarse MLIP-only NEB stage.
+    fmax_mlip_guess: 0.03  # Force convergence target for the first coarse MLIP-only NEB stage.
+    steps_mlip_guess: 3000  # Maximum FIRE steps for the first coarse MLIP-only NEB stage.
+    k_spring_mlip: 0.6  # NEB spring constant used in the first coarse MLIP-only stage.
+    k_spring: 0.6  # NEB spring constant used in the later stages: MLIP+D3 refinement (if enabled) and climbing-image NEB.
+    maxstep_mlip_d3: 0.03  # FIRE `maxstep` for the second stage that refines the path with the dispersion-corrected calculator.
+    fmax_mlip_d3: 0.03  # Force convergence target for the second MLIP+D3 refinement stage.
+    steps_mlip_d3: 1400  # Maximum FIRE steps for the second MLIP+D3 refinement stage.
+    maxstep_ci: 0.03  # FIRE `maxstep` for the final climbing-image NEB stage that sharpens the barrier region.
+    fmax_ci: 0.03  # Force convergence target for the final climbing-image NEB stage.
+    steps_ci: 1000  # Maximum FIRE steps for the final climbing-image NEB stage.
 
 # ════════════════════════════════════════════════════════════════════════
 # Model configuration. it is formatted as follows:
@@ -92,11 +98,19 @@ neb:
 # <model_name> should be the same name as what is checked in get_calc.py.
 
 # ════════════════════════════════════════════════════════════════════════=
-models5:
+
+models:
+  mace-mpa-0-medium:
+    environment: mace_env
+    material: cbvn
+  ivac0_neb_ft: 
+    environment: mace_env
+    material: cbvn 
   # M3GNet models
-  #M3GNet-ANI-1x-Subset-PES: # exclude this one. it is only for H C N O. not B.
-  #  environment: matgl_env
-  #  material: cbvn
+  M3GNet-ANI-1x-Subset-PES: # exclude this one. it is only for H C N O. not B (elements)
+    environment: matgl_env
+    material: cbvn
+
   M3GNet-MatPES-PBE-v2025.1-PES:
     environment: matgl_env
     material: cbvn
@@ -182,15 +196,8 @@ models5:
   mace-omat-0-medium:
     environment: mace_env
     material: cbvn
-models:
-  mace-mpa-0-medium:
-    environment: mace_env
-    material: cbvn
-  ivac0_neb_ft: 
-    environment: mace_env
-    material: cbvn 
+
     
-models4:
   mace-matpes-pbe-omat-ft:
     environment: mace_env
     material: cbvn
