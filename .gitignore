@@ -30,6 +30,8 @@ assets/models/**
 
 .cache/
 
+test/**
+
 # Ignore Results and model cache as well:
 #assets/models/**
 #results/**
