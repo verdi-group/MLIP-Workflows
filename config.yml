@@ -1,97 +1,103 @@
 
-# ===========================================================
+# ════════════════════════════════════════════════════════════════════════
 # Executive parameters
 executive:
   plots: True
+  default_name_templates: # Names for every kind of file. 
+    # base is set as {model.name}_{structure.name}, so operations 
+    # are unique to the model + structure
 
-# ===========================================================
+    # raw
+    "relax_traj": "{base}_relax.traj"
+    "relaxed_poscar": "{base}_relaxed.poscar"
+    "phonons_obj": "{base}_phonons.yaml"
+    "force_constants": "{base}_force_constants.yaml"
+    "phonon_dos_npz": "{base}_phonon_dos.npz"
+    "phonon_band_yaml": "{base}_phonon_band.yaml"
+
+    # plots (optional)
+    "phonon_band_plot": "{base}_phonon_band_plot.png"
+    "phonon_dispersion_dos_plot": "{base}_phonon_dispersion_dos.png"
+    "phonon_dos_plot": "{base}_phonon_dos.png"
+
+    # Plumipy
+    "band_plumipy": "{base}_band.yaml"
+    "contcar_gs_plumipy": "{base}_CONTCAR_GS"
+    "outcar_gs_plumipy": "{base}_OUTCAR_GS"
+
+#TODO: make naming per operation. As in, make default_name_templates a dictionary of dictionaries with files pertaining to the 'phonon' operation grouped together in their sub dictionary. 
+
+# ════════════════════════════════════════════════════════════════════════
 # Path configuration (all paths are relative to this config file unless absolute)
 paths:
   assets_root: assets
   structures_root: assets/structures
 
-# ===========================================================
+phonon_coupling:
+  contcar_gs: test/CBVN/CONTCAR_GS
+  contcar_es: test/CBVN/CONTCAR_ES
+  band_dft_path: test/CBVN/band.yaml
+  q_tol: 1e-4
+  lattice_tol: 1e-5
+  threshold: 0.9
+  freq_cluster_tol: 0.5
+  freq_window: 0.5
+  remove_mass_weighted_com: true
+  gamma_only: true
+  alpha: 1.3
+  weight_kind: S
 
-# ===========================================================
+mlip_phonons:
+  defaults:
+    model_name: mace-mpa-0-medium
+    structure: null
+
+neb:
+  defaults:
+    model_name: ivac0_neb_ft
+    results_root: resultsNEBvdw_3bdy_rlxd2_1
+    models_root: assets/models
+    structures_dir: assets/structures/NEB
+    poscar_i: assets/structures/NEB/POSCAR_i
+    poscar_f: assets/structures/NEB/POSCAR_f
+    dft_neb_dat: assets/structures/NEB/neb.dat
+    vasp_inputs_dir: null
+    relax_endpoints: true
+    remap_f_i: false
+    include_vdw: true
+    overwrite: false
+    device: cuda
+    dtype: float32
+  settings:
+    n_images_fallback: 9
+    maxstep_mlip_guess: 0.05
+    fmax_mlip_guess: 0.03
+    steps_mlip_guess: 3000
+    k_spring_mlip: 0.6
+    k_spring: 0.6
+    maxstep_mlip_d3: 0.03
+    fmax_mlip_d3: 0.03
+    steps_mlip_d3: 1400
+    maxstep_ci: 0.03
+    fmax_ci: 0.03
+    steps_ci: 1000
+
+# ════════════════════════════════════════════════════════════════════════
 # Model configuration. it is formatted as follows:
 
 #models:
 # <model_name>:
-#   environment: <name of this models environment>
+#   environment: <name of this models conda environment>
 #   material: <name of material model will analyse. This should be registered in material_config.yml>
 #
 # <model_name> should be the same name as what is checked in get_calc.py.
 
-# ============================================================
-
-models:
-
-  # MACE models
-  small-omat-0:
-    environment: mace_env
-    material: cbvn
-  mace-omat-0-medium:
-    environment: mace_env
-    material: cbvn
-  mace-mpa-0-medium:
-    environment: mace_env
-    material: cbvn
-  mace-matpes-pbe-omat-ft:
-    environment: mace_env
-    material: cbvn
-  mace-matpes-r2scan-omat-ft:
-    environment: mace_env
-    material: cbvn
-
-  # ORB models
-  orb-v3-direct-omat:
-    environment: mace_env
-    material: cbvn
-  orb-d3-sm-v2:
-    environment: mace_env
-    material: cbvn
-  orb-v3-conservative-inf-omat:
-    environment: mace_env
-    material: cbvn
-
-  # PET models 
-  pet-mad-s-v1.1.0:
-    environment: mace_env
-    material: cbvn
-  pet-omad-l-v0.1.0:
-    environment: mace_env
-    material: cbvn
-  pet-omad-s-v1.0.0:
-    environment: mace_env
-    material: cbvn
-  pet-omat-l-v1.0.0:
-    environment: mace_env
-    material: cbvn
-  pet-omat-m-v1.0.0:
-    environment: mace_env
-    material: cbvn
-  pet-omat-xl-v1.0.0:
-    environment: mace_env
-    material: cbvn
-
-  # CHGNet 
-  CHGNet-MatPES-PBE-2025.2.10-2.7M-PES:
-    environment: matgl_env
-    material: cbvn
-  CHGNet-MPtrj-2023.12.1-2.7M-PES:
-    environment: matgl_env
-    material: cbvn
-  CHGNet-MPtrj-2024.2.13-11M-PES:
-    environment: matgl_env
-    material: cbvn
-  CHGNet-MatPES-r2SCAN-2025.2.10-2.7M-PES:
-    environment: matgl_env
-    material: cbvn
-
+# ════════════════════════════════════════════════════════════════════════=
+models5:
   # M3GNet models
-  M3GNet-ANI-1x-Subset-PES: # exclude this one. it is only for H C N O. not B.
-    environment: matgl_env
-    material: cbvn
+  #M3GNet-ANI-1x-Subset-PES: # exclude this one. it is only for H C N O. not B.
+  #  environment: matgl_env
+  #  material: cbvn
   M3GNet-MatPES-PBE-v2025.1-PES:
     environment: matgl_env
     material: cbvn
@@ -101,6 +107,7 @@ models:
   M3GNet-MP-2021.2.8-DIRECT-PES:
     environment: matgl_env
     material: cbvn
+
   M3GNet-MP-2021.2.8-PES:
     environment: matgl_env
     material: cbvn
@@ -122,7 +129,82 @@ models:
     material: cbvn
 
 
-# ============================================================
+  
+
+  # ORB models
+  orb-v3-direct-inf-omat:
+    environment: mace_env
+    material: cbvn
+  orb-d3-sm-v2:
+    environment: mace_env
+    material: cbvn
+
+  # this model errors for NEB WITH d3 for some reason. 
+  # The error expicitly is "segmentation fault (core dumped) just after opt1 begins running"
+
+  #orb-v3-conservative-inf-omat: 
+  #  environment: mace_env
+  #  material: cbvn
+
+  # PET models 
+  pet-mad-s-v1.1.0:
+    environment: mace_env
+    material: cbvn
+  pet-omad-l-v0.1.0:
+    environment: mace_env
+    material: cbvn
+  pet-omad-s-v1.0.0:
+    environment: mace_env
+    material: cbvn
+  pet-omat-l-v1.0.0:
+    environment: mace_env
+    material: cbvn
+  pet-omat-m-v1.0.0:
+    environment: mace_env
+    material: cbvn
+  pet-omat-xl-v1.0.0:
+    environment: mace_env
+    material: cbvn
+  # CHGNet 
+  CHGNet-MatPES-PBE-2025.2.10-2.7M-PES:
+    environment: matgl_env
+    material: cbvn
+  CHGNet-MPtrj-2023.12.1-2.7M-PES:
+    environment: matgl_env
+    material: cbvn
+  CHGNet-MPtrj-2024.2.13-11M-PES:
+    environment: matgl_env
+    material: cbvn
+
+  # MACE models
+  small-omat-0:
+    environment: mace_env
+    material: cbvn
+  mace-omat-0-medium:
+    environment: mace_env
+    material: cbvn
+models:
+  mace-mpa-0-medium:
+    environment: mace_env
+    material: cbvn
+  ivac0_neb_ft: 
+    environment: mace_env
+    material: cbvn 
+    
+models4:
+  mace-matpes-pbe-omat-ft:
+    environment: mace_env
+    material: cbvn
+  mace-matpes-r2scan-omat-ft:
+    environment: mace_env
+    material: cbvn
+  
+  CHGNet-MatPES-r2SCAN-2025.2.10-2.7M-PES:
+    environment: matgl_env
+    material: cbvn
+  
+
+# ════════════════════════════════════════════════════════════════════════=
 # Structure configuration
 #
 # Add a new structure by inserting it under a group (pure/defects) and
@@ -141,7 +223,7 @@ models:
 #       kpts: [kx, ky, kz]  # k-point mesh for DOS sampling
 #       npts: <int>         # number of DOS bins
 #       width_ev: <float>   # Gaussian broadening in eV
-# ============================================================
+# ════════════════════════════════════════════════════════════════════════=
 # NOTE THAT YOU CAN CHANGE THE DATA TYPE WHEN USING HPC. i use float32 bc my laptop small. 
 
 
@@ -218,7 +300,19 @@ structures:
       npts: 300
       width_ev: 1e-3
 
-
+    CsPbI3:
+      want_phonons: False
+      neb:
+        enabled: true
+        initial_path: neb/endpoints/diamond_A.vasp
+        final_path: neb/endpoints/diamond_B.vasp
+        n_images: 7
+        spring_k: 0.1
+        climb: true
+        interpolation: idpp
+        optimizer: FIRE
+        fmax: 0.05
+        steps: 400
 
   
 

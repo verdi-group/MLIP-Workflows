@@ -1,7 +1,7 @@
 from __future__ import annotations
 import __main__
 from pathlib import Path
-from typing import Any
+from typing import Callable, Any, Dict
 
 
 
@@ -23,23 +23,27 @@ load_model(path: 'str | Path', **kwargs)
 #get_calc_object("CHGNet-MatPES-PBE-2025.2.10-2.7M-PES")
 
 
-
-
-
-from pathlib import Path
-from typing import Callable, Any, Dict
+def _resolve_model_path(models_root: Path, *segments: str) -> Path:
+    """Try backend-specific path first, then fall back to a flat model dir."""
+    candidate = models_root.joinpath(*segments)
+    if candidate.exists():
+        return candidate
+    fallback = models_root / segments[-1]
+    if fallback.exists():
+        return fallback
+    return candidate
 
 def _mace_builder(model_rel: str) -> Callable[[Path, str, str], Any]:
     def _build(models_root: Path, device: str, dtype: str) -> Any:
         from mace.calculators import MACECalculator
-        model_path = models_root / "mace" / model_rel
+        model_path = _resolve_model_path(models_root, "mace", model_rel)
         return MACECalculator(model_path=str(model_path), device=device, default_dtype=dtype)
     return _build
 
 def _mattersim_builder(model_rel: str) -> Callable[[Path, str, str], Any]:
     def _build(models_root: Path, device: str, dtype: str) -> Any:
         from mattersim.forcefield import MatterSimCalculator
-        model_path = models_root / "mattersim" / model_rel
+        model_path = _resolve_model_path(models_root, "mattersim", model_rel)
         return MatterSimCalculator(from_checkpoint=str(model_path), device=device)
     return _build
 
@@ -52,7 +56,7 @@ def _matgl_builder(model_dir: str) -> Callable[[Path, str, str], Any]:
         from matgl.utils.io import load_model
         from matgl.ext._ase_dgl import PESCalculator
 
-        model_path = models_root / "matgl" / "pretrained_models" / model_dir
+        model_path = _resolve_model_path(models_root, "matgl", "pretrained_models", model_dir)
         pot = load_model(model_path, force_download=False)
         pot.cuda()
         return PESCalculator(pot)
@@ -61,31 +65,87 @@ def _matgl_builder(model_dir: str) -> Callable[[Path, str, str], Any]:
 def _pet_builder(model_rel: str) -> Callable[[Path, str, str], Any]:
     def _build(models_root: Path, device: str, dtype: str) -> Any:
         from metatomic.torch.ase_calculator import MetatomicCalculator
-        model_path = models_root / "petmad" / "upet" / model_rel
+        model_path = _resolve_model_path(models_root, "petmad", "upet", model_rel)
         return MetatomicCalculator(str(model_path), device=device, non_conservative=True)
     return _build
 
 def _orb_builder(model_rel: str, precision: str) -> Callable[[Path, str, str], Any]:
     def _build(models_root: Path, device: str, dtype: str) -> Any:
+
+        # orb models as i have encountered them have unique functions to load 
+        # their respective weights. hence we need a dictionary to call the particular function
+        # if one wants to add a new orb model then one will have to get ofc a) get the model weights
+        # b) add the model name to config.yml
+        # c) add the model name to the below function dictionary, and also to the model_build dictionary
+        # d) add its corresponding orb model load function to the below dictionary. and that is that.
+        
+
+        """
+        # below is an attempt to condense the if statements however i am yet to test 
+        # whether orb_d3_sm_v2 accepts the precision argument. 
+
+        orb_model_function_dict = {
+            "orb-v3-direct-inf-omat": pretrained.orb_v3_direct_inf_omat,
+            "orb-v3-conservative-inf-omat": pretrained.orb_v3_conservative_inf_omat,
+            "orb-d3-sm-v2": pretrained.orb_d3_sm_v2,
+        }
+        orb_function = orb_model_function_dict[model_name]
+
+        orbff = orb_function(
+            weights_path = str(model_path),
+            device = device, 
+            precision = dtype,
+        )
+        """
+
         from orb_models.forcefield import pretrained
         from orb_models.forcefield.calculator import ORBCalculator
 
-        model_path = models_root / "orb" / model_rel
-        orbff = pretrained.orb_v3_direct_inf_omat(weights_path=str(model_path), device=device)
+        if dtype == "float32": 
+            dtype = "float32-high"
+
+        model_path = _resolve_model_path(models_root, "orb", model_rel)
+        model_name = str(Path(model_rel).stem)
+       
+
+        if model_name == "orb-v3-direct-inf-omat":
+            orbff = pretrained.orb_v3_direct_inf_omat(
+                weights_path=str(model_path),
+                device=device,
+                precision=dtype,
+            )
+        elif model_name == "orb-v3-conservative-inf-omat":
+            orbff = pretrained.orb_v3_conservative_inf_omat(
+                weights_path=str(model_path),
+                device=device,
+                precision=dtype,
+            )
+        elif model_name == "orb-d3-sm-v2":
+            orbff = pretrained.orb_d3_sm_v2(
+                weights_path=str(model_path),
+                device=device,
+            )
+        else:
+            raise ValueError(
+                f"Model not recognised for {model_name}, check it exists in get_calc_object"
+            )
+
         return ORBCalculator(orbff, device=device)
     return _build
 
-MODEL_BUILDERS: Dict[str, Callable[[Path, str, str], Any]] = {
+
+model_build: Dict[str, Callable[[Path, str, str], Any]] = {
     "small-omat-0": _mace_builder("mace-omat-0-small.model"),
     "mace-omat-0-medium": _mace_builder("mace-omat-0-medium.model"),
     "mace-mpa-0-medium": _mace_builder("mace-mpa-0-medium.model"),
     "mace-matpes-pbe-omat-ft": _mace_builder("MACE-matpes-pbe-omat-ft.model"),
     "mace-matpes-r2scan-omat-ft": _mace_builder("MACE-matpes-r2scan-omat-ft.model"),
+    "ivac0_neb_ft": _mace_builder("ivac0_neb_ft.model"),
 
     "mattersim-v1.0.0-1M": _mattersim_builder("mattersim-v1.0.0-1M.pth"),
     "mattersim-v1.0.0-5M": _mattersim_builder("mattersim-v1.0.0-5M.pth"),
 
-    "orb-v3-direct-omat": _orb_builder("orb-v3-direct-inf-omat.ckpt", precision="float32-high"),
+    "orb-v3-direct-inf-omat": _orb_builder("orb-v3-direct-inf-omat.ckpt", precision="float32-high"),
     "orb-d3-sm-v2": _orb_builder("orb-d3-sm-v2.ckpt", precision="float64"),
     "orb-v3-conservative-inf-omat": _orb_builder("orb-v3-conservative-inf-omat.ckpt", precision="float64"),
 
@@ -96,6 +156,7 @@ MODEL_BUILDERS: Dict[str, Callable[[Path, str, str], Any]] = {
     "pet-omat-m-v1.0.0": _pet_builder("pet-omat-m-v1.0.0.pt"),
     "pet-omat-xl-v1.0.0": _pet_builder("pet-omat-xl-v1.0.0.pt"),
 
+    "CHGNet-MatPES-r2SCAN-2025.2.10-2.7M-PES": _matgl_builder("CHGNet-MatPES-r2SCAN-2025.2.10-2.7M-PES"),
     "CHGNet-MatPES-PBE-2025.2.10-2.7M-PES": _matgl_builder("CHGNet-MatPES-PBE-2025.2.10-2.7M-PES"),
     "CHGNet-MPtrj-2023.12.1-2.7M-PES": _matgl_builder("CHGNet-MPtrj-2023.12.1-2.7M-PES"),
     "CHGNet-MPtrj-2024.2.13-11M-PES": _matgl_builder("CHGNet-MPtrj-2024.2.13-11M-PES"),
@@ -108,13 +169,45 @@ MODEL_BUILDERS: Dict[str, Callable[[Path, str, str], Any]] = {
     "TensorNetDGL-MatPES-r2SCAN-v2025.1-PES": _matgl_builder("TensorNetDGL-MatPES-r2SCAN-v2025.1-PES"),
 }
 
-def get_calc_object(model: str, models_root: str | Path | None = None,
-                    device: str = "cuda", dtype: str = "float32") -> Any:
+def get_calc_object(
+    model: str,
+    models_root: str | Path | None = None,
+    device: str = "cuda",
+    dtype: str = "float32",
+    *,
+    include_vdw: bool = False,
+    vdw_method: str = "PBE",
+    vdw_damping: str = "d3bj",
+    vdw_abc: bool = False,
+    vdw_params_tweaks: dict[str, float] | None = None,
+    vdw_realspace_cutoff: dict[str, float] | None = None,
+    vdw_cache_api: bool = True,
+) -> Any:
     models_root = Path(models_root) if models_root is not None else Path("assets") / "models"
     try:
-        return MODEL_BUILDERS[model](models_root, device, dtype)
+        calc = model_build[model](models_root, device, dtype)
     except KeyError:
         raise ValueError(f"Unknown model '{model}'")
+
+    has_builtin_dispersion = ("orb-d3" in model.lower())
+    if include_vdw and not has_builtin_dispersion:
+        from ase.calculators.mixing import SumCalculator
+        from dftd3.ase import DFTD3
+
+        d3_kwargs: dict[str, Any] = {
+            "method": vdw_method,
+            "damping": vdw_damping,
+            "cache_api": vdw_cache_api,
+        }
+        if vdw_params_tweaks is not None:
+            d3_kwargs["params_tweaks"] = dict(vdw_params_tweaks)
+        if vdw_realspace_cutoff is not None:
+            d3_kwargs["realspace_cutoff"] = dict(vdw_realspace_cutoff)
+
+        d3 = DFTD3(**d3_kwargs)
+        calc = SumCalculator([calc, d3])
+
+    return calc
 
 
 mace_env = [
@@ -123,7 +216,7 @@ mace_env = [
     "mace-mpa-0-medium",
     "mace-matpes-pbe-omat-ft",
     "mace-matpes-r2scan-omat-ft",
-    "orb-v3-direct-omat",
+    "orb-v3-direct-inf-omat",
     "orb-d3-sm-v2",
     "orb-v3-conservative-inf-omat",
     "pet-mad-s-v1.1.0",
@@ -135,6 +228,7 @@ mace_env = [
 ]
 
 matgl_env = [
+    "CHGNet-MatPES-r2SCAN-2025.2.10-2.7M-PES",
     "CHGNet-MatPES-PBE-2025.2.10-2.7M-PES",
     "CHGNet-MPtrj-2023.12.1-2.7M-PES",
     "CHGNet-MPtrj-2024.2.13-11M-PES",
@@ -157,7 +251,7 @@ mattersim_env = [
 if __name__ == "__main__":
     for model in matgl_env: #mattersim_env: #mace_env: #matgl_env: #mattersim_env: #matgl_env: #mace_env: #+ matgl_env + mattersim_env:
         try:
-            calc = get_calc_object2(model)
+            calc = get_calc_object(model)
             print(type(calc))
             print(f"Successfully loaded calculator for model: {model}")
             #if hasattr(calc, "element_types"):
@@ -245,7 +339,7 @@ def get_calc_object2(model: str, models_root: str | Path | None = None) -> Any:
         calc = MatterSimCalculator(from_checkpoint=str(checkpoint_path), device="cuda")
         print(f"using {model} calculator")
 
-    elif model == "orb-v3-direct-omat":  # ORB models are not working.
+    elif model == "orb-v3-direct-inf-omat":  # ORB models are not working.
         from orb_models.forcefield import pretrained
         from orb_models.forcefield.calculator import ORBCalculator
 

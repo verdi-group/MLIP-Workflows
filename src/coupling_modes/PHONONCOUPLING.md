@@ -8,9 +8,9 @@ Inputs:
 - `CONTCAR_GS` and `CONTCAR_ES` (same atom ordering).
 - One DFT `band.yaml` and a set of MLIP `band.yaml` files (Phonopy format).
 
-Output: a text report that (i) selects DFT ``coupling'' modes from the GS$\to$ES displacement, (ii) scores each MLIP on several diagnostics, and (iii) produces a ranked list.
+Output: a text report that (i) selects DFT ``coupling'' modes from the GS$\to$ES displacement, (ii) scores each MLIP on several metrics, and (iii) produces a ranked list.
 
-## What the script computes
+## What the script computes (the metrics)
 **(1) GS$\to$ES mass-weighted displacement.**  
 From the two CONTCARs we compute the minimum-image displacement in Cartesian coordinates, optionally remove the mass-weighted center-of-mass shift, and form the mass-weighted displacement vector:
 $$
@@ -71,6 +71,195 @@ The report also prints:
 
 
 # Dictionary for `phonon_coupling_report_{i}.txt`
+This is appended in pdf form as 'symbols.pdf'. Below i provide interpretation of the couplign_report.txt file. 
+
+Below is a compact, ordered walkthrough of the most important report sections. Each section follows the same pattern: title, one-sentence essence, an example copied from `phonon_coupling_report_4.txt`, and a terse glossary of every key term that appears in that example.
+
+**FINAL RANKING (lower dQ Score is better)**
+Essence: A sorted scoreboard of models where smaller `Score_mean` means closer agreement with DFT coupling modes.
+Example:
+```text
+FINAL RANKING (lower dQ Score is better)
+----------------------------------------
+rank  Score_mean    E_freq      E_vec       E_freq_rel   X_mean      model
+   1    0.969945   0.430380   0.415050     0.048464   0.765116  orb-v3-direct-omat
+   2    0.973523   0.271346   0.540136     0.026675   0.660771  pet-omat-m-v1.0.0
+   3    0.975993   0.508419   0.359672     0.045925   0.553110  mace-matpes-r2scan-omat-ft
+   4    0.999108   0.491352   0.390582     0.057103   0.538476  mace-omat-0-medium
+   5    1.087501   0.631274   0.350944     0.069844   0.662776  mattersim-v1.0.0-1M
+   6    1.087599   0.631273   0.351020     0.069844   0.662705  mattersim-v1.0.0-5M
+   7    1.174055   0.628945   0.419315     0.065520   0.458567  small-omat-0
+   8    1.421401   0.895533   0.404514     0.104516   0.553788  pet-omat-l-v1.0.0
+   9    1.476293   0.833172   0.494708     0.043442   0.436489  TensorNetDGL-MatPES-r2SCAN-v2025.1-PES
+  10    1.528758   0.974075   0.426679     0.093157   0.544434  mace-matpes-pbe-omat-ft
+  11    1.774417   1.105344   0.514672     0.135703   0.289872  pet-omat-xl-v1.0.0
+  12    1.802689   1.176082   0.482005     0.141564   0.468044  orb-v3-conservative-inf-omat
+  13    1.812293   1.047904   0.587991     0.104396   0.235390  TensorNetDGL-MatPES-PBE-v2025.1-PES
+  14    2.504070   1.792995   0.546980     0.213416   0.498711  pet-omad-s-v1.0.0
+  15    5.862976   4.842523   0.784964     0.379993   0.425238  CHGNet-MatPES-PBE-2025.2.10-2.7M-PES
+  16    5.925198   5.127700   0.613460     0.447990   0.317461  M3GNet-MatPES-r2SCAN-v2025.1-PES
+  17    6.535556   5.732048   0.618083     0.356611   0.536645  CHGNet-MPtrj-2023.12.1-2.7M-PES
+  18    6.778403   5.982676   0.612097     0.288561   0.326966  mace-mpa-0-medium
+  19    7.415465   6.436802   0.752818     0.471850   0.134123  CHGNet-MPtrj-2024.2.13-11M-PES
+  20    9.408333   8.550760   0.659671     0.782129   0.373738  pet-mad-s-v1.1.0
+  21    9.596367   8.392233   0.926257     0.874040   0.306365  orb-d3-sm-v2
+  22    9.936405   8.903370   0.794642     0.659815   0.559477  M3GNet-MP-2021.2.8-PES
+  23   10.927271  10.038709   0.683509     0.632255   0.466293  CHGNet-MatPES-r2SCAN-2025.2.10-2.7M-PES
+  24   13.071580  12.047831   0.787500     0.742900   0.384124  pet-omad-l-v0.1.0
+  25   13.872716  12.897500   0.750167     1.079009   0.456099  M3GNet-MP-2021.2.8-DIRECT-PES
+```
+Key terms:
+- `rank`: ordering by best (lowest) `Score_mean`.
+- `Score_mean`: Mean dQ score across q-points. $\mathrm{Score\_mean}=\langle \mathrm{Score}(\mathbf q)\rangle_{\mathbf q}$ with $\mathrm{Score}(\mathbf q)=E_{\mathrm{freq}}(\mathbf q)+\alpha\,E_{\mathrm{vec}}(\mathbf q)$.
+- `E_freq`: Weighted RMS frequency error after Hungarian matching. $E_{\mathrm{freq}}(\mathbf q)=\sqrt{\sum_i \tilde w_i\left(\omega_{\pi(i)}^{\mathrm{ML}}-\omega_i^{\mathrm{DFT}}\right)^2}$, $\tilde w_i=w_i/\sum_j w_j$, $\pi$ = Hungarian assignment.
+- `E_vec`: Weighted RMS eigenvector mismatch after Hungarian matching. $E_{\mathrm{vec}}(\mathbf q)=\sqrt{\sum_i \tilde w_i\left(1-O_{i,\pi(i)}\right)^2}$, $O_{ij}=|\mathbf e_i^{\mathrm{DFT}\,\dagger}\mathbf e_j^{\mathrm{ML}}|^2$.
+- `E_freq_rel`: Weighted RMS relative frequency error. $E_{\mathrm{freq,rel}}(\mathbf q)=\sqrt{\sum_i \tilde w_i\left(\frac{\omega_{\pi(i)}^{\mathrm{ML}}-\omega_i^{\mathrm{DFT}}}{\max(|\omega_i^{\mathrm{DFT}}|,\varepsilon)}\right)^2}$.
+- `X_mean`: Mean coupling-subspace agreement across q-points. $X(\mathbf q)=\frac{1}{k_{\mathrm{DFT}}}\sum_{\ell=1}^{\min(k_{\mathrm{DFT}},k_{\mathrm{ML}})}\sigma_\ell^2$ and $X_{\mathrm{mean}}=\langle X(\mathbf q)\rangle_{\mathbf q}$ with $\sigma_\ell=\mathrm{svd}(Q_{\mathrm{DFT}}^\dagger Q_{\mathrm{ML}})$.
+- `model`: model identifier string.
+
+**Model-dQ-AvgProjPowerX-couplingcluster-cid**
+Essence: The per-model block that reports its dQ score, coupling-mode subspace overlap, and coupling-cluster statistics.
+Example:
+```text
+Model: /home/rnpla/projects/mlip_phonons/results/small-omat-0/cbvn/raw/Plumipy_Files/band.yaml
+  dQ score: mean=1.174055  min=1.174055  E_freq=0.628945  E_freq_rel=0.065520  E_vec=0.419315
+  AvgProjPowX coupling modes subspace scores X: mean=0.458567  min=0.458567  max=0.458567
+  Coupling cluster (eigenspaces) subspace scores: L1w_mean=0.244902  wθ_mean=5.690790  w(1-σ^2)_mean=0.041833
+  Per-q dQ score (summary):
+    q=[ 0.000000,  0.000000,  0.000000]  Score=1.174055  E_freq=0.628945  E_freq_rel=0.065520  E_vec=0.419315
+  Per-q AvgProjPowX angles (summary):
+    q=[ 0.000000,  0.000000,  0.000000]  X=0.458567  k_dft=13  k_ml=10  σ_min=0.011010  σ_mean=0.638864  θ_mean=37.992°  θ_max=89.369°
+  Per-q coupling cluster stats:
+    q=[ 0.000000,  0.000000,  0.000000]  L1w=0.244902  wθ=5.690790  w(1-σ^2)=0.041833
+      cid  size  fmin        fmax        w_dft     w_ml      θ_mean    θ_max     θ_min
+        4    35   6.550634   9.632476   0.540667   0.660824    2.425°   18.388°   0.582541
+        5     3   10.942293   11.367780   0.264235   0.169903   10.154°   13.756°   0.564211
+        6    16   12.418793   13.775959   0.027630   0.018534    6.351°   61.638°   0.889272
+        7     7   15.656533   16.109659   0.029404   0.025030   18.243°   89.995°   1.000000
+        9    49   18.030717   20.682009   0.034739   0.044923   21.927°   89.873°   0.999998
+       16    17   31.176752   35.012994   0.023934   0.017175    9.325°   21.037°   0.595147
+```
+Key terms:
+- `Model`: path to the MLIP `band.yaml` used for this block.
+- `dQ score`: Combined frequency + eigenvector error. $\mathrm{Score}(\mathbf q)=E_{\mathrm{freq}}(\mathbf q)+\alpha\,E_{\mathrm{vec}}(\mathbf q)$, with `mean/min` taken across q-points.
+- `mean`: average across q-points.
+- `min`: minimum across q-points.
+- `E_freq`: Weighted RMS frequency error after Hungarian matching. $E_{\mathrm{freq}}(\mathbf q)=\sqrt{\sum_i \tilde w_i\left(\omega_{\pi(i)}^{\mathrm{ML}}-\omega_i^{\mathrm{DFT}}\right)^2}$, with $\tilde w_i=w_i/\sum_j w_j$ and $\pi$ the Hungarian assignment.
+- `E_freq_rel`: Weighted RMS relative frequency error. $E_{\mathrm{freq,rel}}(\mathbf q)=\sqrt{\sum_i \tilde w_i\left(\frac{\omega_{\pi(i)}^{\mathrm{ML}}-\omega_i^{\mathrm{DFT}}}{\max(|\omega_i^{\mathrm{DFT}}|,\varepsilon)}\right)^2}$ (dimensionless).
+- `E_vec`: Weighted RMS eigenvector mismatch after Hungarian matching. $E_{\mathrm{vec}}(\mathbf q)=\sqrt{\sum_i \tilde w_i\left(1-O_{i,\pi(i)}\right)^2}$, $O_{ij}=|\mathbf e_i^{\mathrm{DFT}\,\dagger}\mathbf e_j^{\mathrm{ML}}|^2$.
+- `AvgProjPowX`: Coupling-subspace agreement at each q-point. $X(\mathbf q)=\frac{1}{k_{\mathrm{DFT}}}\sum_{\ell=1}^{\min(k_{\mathrm{DFT}},k_{\mathrm{ML}})}\sigma_\ell^2$ (mean/min/max over q are reported).
+- `coupling modes subspace scores`: summary of `X` across q-points.
+- `X`: Coupling-subspace agreement score. $X(\mathbf q)$ as above, with $\sigma_\ell=\mathrm{svd}(Q_{\mathrm{DFT}}^\dagger Q_{\mathrm{ML}})$ and $Q_{\mathrm{DFT}}$, $Q_{\mathrm{ML}}$ orthonormal coupling-mode bases.
+- `angles`: Principal angles between coupling subspaces. $\theta_\ell=\arccos(\sigma_\ell)$, summarized as `θ_*`.
+- `max`: maximum across q-points.
+- `Coupling cluster (eigenspaces) subspace scores`: summary of cluster-level subspace agreement.
+- `L1w_mean`: Average cluster-weight mismatch. $\langle \sum_{C\in\mathcal R_\tau(\mathbf q)}|w_C^{\mathrm{ML}}-w_C^{\mathrm{DFT}}|\rangle_{\mathbf q}$, $\mathcal R_\tau$ = DFT-important clusters.
+- `wθ_mean`: Average DFT-weighted cluster misalignment angle. $\langle \sum_{C\in\mathcal R_\tau(\mathbf q)} w_C^{\mathrm{DFT}}\,\overline{\theta}_C\rangle_{\mathbf q}$, $\overline{\theta}_C$ = mean principal angle in cluster $C$ (deg).
+- `w(1-σ^2)_mean`: Average DFT-weighted subspace mismatch. $\langle \sum_{C\in\mathcal R_\tau(\mathbf q)} w_C^{\mathrm{DFT}}\left(1-\sigma_C^2\right)\rangle_{\mathbf q}$, $\sigma_C^2$ = mean squared singular value for cluster $C$.
+- `Per-q`: values for each individual q-point.
+- `q=[ ... ]`: the q-point vector used.
+- `Score`: Per-q dQ score at the listed q-point. $\mathrm{Score}(\mathbf q)=E_{\mathrm{freq}}(\mathbf q)+\alpha\,E_{\mathrm{vec}}(\mathbf q)$.
+- `k_dft`: dimension of the DFT coupling-mode subspace.
+- `k_ml`: dimension of the ML coupling-mode subspace.
+- `σ_min`: Smallest singular value between coupling subspaces. $\min_\ell \sigma_\ell$ for $Q_{\mathrm{DFT}}^\dagger Q_{\mathrm{ML}}$.
+- `σ_mean`: Mean singular value between coupling subspaces. $\langle \sigma_\ell\rangle_\ell$ for $Q_{\mathrm{DFT}}^\dagger Q_{\mathrm{ML}}$.
+- `θ_mean`: Mean principal angle between coupling subspaces. $\langle \theta_\ell\rangle_\ell$.
+- `θ_max`: Largest principal angle between coupling subspaces. $\max_\ell \theta_\ell$.
+- `L1w`: Per-q cluster-weight mismatch. $\sum_{C\in\mathcal R_\tau(\mathbf q)}|w_C^{\mathrm{ML}}-w_C^{\mathrm{DFT}}|$.
+- `wθ`: Per-q DFT-weighted cluster misalignment angle. $\sum_{C\in\mathcal R_\tau(\mathbf q)} w_C^{\mathrm{DFT}}\,\overline{\theta}_C$.
+- `w(1-σ^2)`: Per-q DFT-weighted subspace mismatch. $\sum_{C\in\mathcal R_\tau(\mathbf q)} w_C^{\mathrm{DFT}}\left(1-\sigma_C^2\right)$.
+- `cid`: cluster ID.
+- `size`: number of modes in the cluster.
+- `fmin`: minimum frequency in the cluster.
+- `fmax`: maximum frequency in the cluster.
+- `w_dft`: DFT weight assigned to the cluster.
+- `w_ml`: MLIP weight assigned to the cluster.
+- `θ_min`: minimum principal angle for the cluster subspace.
+
+**Mode–coupling comparison report**
+Essence: The run header that records the inputs and global settings for this report.
+Example:
+```text
+Mode–coupling comparison report
+-------------------------------
+DFT: /home/rnpla/projects/mlip_phonons/test/CBVN/band.yaml
+N atoms: 97    N modes: 291
+Settings: threshold=0.900, freq_cluster_tol=0.500, freq_window=0.500, alpha=1.300, weight_kind=S
+q-points used: 1
+  q[0] index=0  pos=[ 0.000000,  0.000000,  0.000000]
+```
+Key terms:
+- `DFT`: the reference `band.yaml` path.
+- `N atoms`: atom count in the supercell.
+- `N modes`: total phonon modes (`3N`).
+- `Settings`: run configuration summary line.
+- `threshold`: cumulative `p` cutoff used to select coupling modes.
+- `freq_cluster_tol`: frequency gap that starts a new cluster.
+- `freq_window`: window around a DFT cluster used for ML comparisons.
+- `alpha`: weight on eigenvector mismatch in the dQ score.
+- `weight_kind`: which DFT weighting scheme is used (`p`, `S`, or `lambda`).
+- `q-points used`: number of q-points included in the report.
+- `q[0]`: q-point index label.
+- `index`: the q-point index inside the `band.yaml`.
+- `pos`: the q-point coordinates.
+
+**DFT Coupling modes (per mode)**
+Essence: Lists the individual DFT modes that capture the largest share of the GS→ES displacement.
+Example:
+```text
+DFT Coupling modes  (per mode) 
+-------------------------------
+q[0] index=0  sum(p)=1.000000
+  selected modes: k=13  cumsum_last=0.906262
+  Coupling modes: mode | freq | p):
+      31   7.079503   5.384810e-01
+      58   11.367780   1.906097e-01
+      57   11.125993   7.362567e-02
+      75   15.656533   2.673579e-02
+      84   17.151593   1.270706e-02
+     177   29.123638   9.271332e-03
+     111   19.452359   8.767571e-03
+      82   16.753087   8.660799e-03
+     179   30.224084   8.554050e-03
+     195   33.687570   7.468104e-03
+```
+Key terms:
+- `q[0]`: q-point index label.
+- `index`: the q-point index inside the `band.yaml`.
+- `sum(p)`: total projection power summed over all modes (should be ~1).
+- `selected modes`: the subset kept after thresholding.
+- `k`: number of selected modes.
+- `cumsum_last`: cumulative `p` of the selected set (≥ threshold).
+- `Coupling modes`: the per-mode table header.
+- `mode`: mode index.
+- `freq`: mode frequency.
+- `p`: projection power of the mode (fraction of |Δq|^2).
+
+**DFT Coupling clusters (eigenspace)**
+Essence: Groups DFT modes into frequency clusters and reports each cluster's DFT weight.
+Example:
+```text
+DFT Coupling clusters (eigenspace)
+----------------------------------
+q[0] index=0  pos=[ 0.000000,  0.000000,  0.000000]
+  cid  size  fmin        fmax        w_dft
+    4    35   6.550634   9.632476   0.540667
+    5     3   10.942293   11.367780   0.264235
+    9    49   18.030717   20.682009   0.034739
+    7     7   15.656533   16.109659   0.029404
+    6    16   12.418793   13.775959   0.027630
+   16    17   31.176752   35.012994   0.023934
+```
+Key terms:
+- `q[0]`: q-point index label.
+- `index`: the q-point index inside the `band.yaml`.
+- `pos`: the q-point coordinates.
+- `cid`: cluster ID. (after clustering frequencies)
+- `size`: number of modes in the cluster.
+- `fmin`: minimum cluster frequency.
+- `fmax`: maximum cluster frequency.
+- `w_dft`: DFT weight assigned to the cluster. (approximately how much of the displacement that that cluster of modes explains)
+
 
 ## Scores used in the report
 

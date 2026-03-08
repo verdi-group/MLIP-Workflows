@@ -6,6 +6,8 @@ dependencies:
   - python=3.10
   - pip
   - phonopy
+  - dftd3-python
+  - simple-dftd3
   - pip:
       - mace-torch
       - upet

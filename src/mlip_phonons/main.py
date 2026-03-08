@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#from __future__ import annotations
+from __future__ import annotations
 
 import sys
 from pathlib import Path
@@ -25,17 +25,18 @@ from .relax import relax
 from .phonons import get_phonons, get_band_structure, get_dos, write_gamma_band_yaml_for_plumipy
 from .plot import obj_plot_band, obj_plot_band_dos, obj_plot_dos
 from .tools.plumipy_conversions import write_contcar_for_plumipy, write_minimal_outcar_for_plumipy
+from .config_classes import ExecutiveCfg, ModelCfg, StructureCfg
+
 
 matplotlib.use("Agg")  # no GUI, no .show()
 if not torch.cuda.is_available():
-    raise RuntimeError("CUDA not available (check node).")
+    raise RuntimeError("CUDA not available (check node).") # included for hpc use
 torch.set_default_device("cuda") #TODO: make this configurable?
 
 # ════════════════════════════════════
-# helpers
+# private helpers (use _ to indicate these, not intended to be called globally
 # ════════════════════════════════════
 
-# use _ to indicate private helper functions.
 
 def _load_yaml(path: Path) -> dict[str, Any]:
     """Load a YAML file into a dictionary.
@@ -103,6 +104,7 @@ def _ints_from_any(x: Any) -> list[int]:
         return [int(v) for v in arr.tolist()]
     raise ValueError(f"Expected str/list/tuple/ndarray of ints, got {type(x)}")
 
+# in config_classes
 def _parse_supercell_matrix(sc_in: Any) -> tuple[int, int, int] | np.ndarray:
     """Parse a supercell matrix from a flexible input.
 
@@ -122,6 +124,7 @@ def _parse_supercell_matrix(sc_in: Any) -> tuple[int, int, int] | np.ndarray:
         return np.array(ints, dtype=int).reshape(3, 3)
     raise ValueError(f"Invalid supercell_matrix={sc_in!r}. Need 3 ints or 9 ints.")
 
+# in config_classes
 def _parse_kpts(kpts_in: Any) -> list[int]:
     """Parse a k-point mesh into three integers.
 
@@ -157,274 +160,279 @@ def _is_identity_supercell(sc: tuple[int, int, int] | np.ndarray) -> bool:
 # Dataclasses for config
 # ════════════════════════════════════
 
-StructureGroup = Literal["pure", "defects"]
 
-@dataclass(frozen=True)
-class ExecutiveCfg:
-    """Configuration for execution options and output naming.
+if False: 
+    StructureGroup = Literal["pure", "defects"]
 
-    Attributes:
-        plots (bool): Whether to generate plots.
-        results_root (Path): Root output directory.
-        raw_subdir (str): Subdirectory for raw outputs.
-        plot_subdir (str): Subdirectory for plots.
-        output_name_templates (dict[str, str]): Filename template overrides.
-    """
-    plots: bool = False
-    results_root: Path = Path("results")
-    raw_subdir: str = "raw"
-    plot_subdir: str = "plot"
-    output_name_templates: dict[str, str] = field(default_factory=dict)
+    @dataclass(frozen=True)
+    class ExecutiveCfg:
+        """Configuration for execution options and output naming.
 
-    @staticmethod
-    def from_dict(d: dict[str, Any]) -> "ExecutiveCfg":
-        """Build an ExecutiveCfg from a config dictionary.
-
-        Args:
-            d (dict[str, Any]): Parsed configuration dictionary.
-
-        Returns:
-            ExecutiveCfg: Constructed configuration instance.
+        Attributes:
+            plots (bool): Whether to generate plots.
+            results_root (Path): Root output directory.
+            raw_subdir (str): Subdirectory for raw outputs.
+            plot_subdir (str): Subdirectory for plots.
+            output_name_templates (dict[str, str]): Filename template overrides.
         """
-        ex = d.get("executive", {}) or {}
-        out_names = ex.get("output_names", {}) or {}
-        return ExecutiveCfg(
-            plots=bool(ex.get("plots", False)),
-            results_root=Path(ex.get("results_root", "results")),
-            raw_subdir=str(ex.get("raw_subdir", "raw")),
-            plot_subdir=str(ex.get("plot_subdir", "plot")),
-            output_name_templates={str(k): str(v) for k, v in out_names.items()},
-        ) 
+        plots: bool = False
+        results_root: Path = Path("results")
+        raw_subdir: str = "raw"
+        plot_subdir: str = "plot"
+        output_name_templates: dict[str, str] = field(default_factory=dict)
 
-@dataclass(frozen=True)
-class ModelCfg:
-    """Model configuration metadata.
+        @staticmethod
+        def from_config(d: dict[str, Any]) -> "ExecutiveCfg":
+            """Build an ExecutiveCfg from a config dictionary.
 
-    Attributes:
-        name (str): Model name key.
-        environment (str): Environment label or tag.
-        model_path (Path): Path to the model file.
-        default_structure (str): Default structure name.
-    """
-    name: str
-    environment: str
-    model_path: Path
-    default_structure: str
+            Args:
+                d (dict[str, Any]): Parsed configuration dictionary.
 
-    @staticmethod
-    def from_config(config: dict[str, Any], model_name: str) -> "ModelCfg":
-        """Build a ModelCfg from the main config dict.
+            Returns:
+                ExecutiveCfg: Constructed configuration instance.
+            """
+            ex = d.get("executive", {}) or {}
+            out_names = ex.get("output_names", {}) or {}
+            return ExecutiveCfg(
+                plots=bool(ex.get("plots", False)),
+                results_root=Path(ex.get("results_root", "results")),
+                raw_subdir=str(ex.get("raw_subdir", "raw")),
+                plot_subdir=str(ex.get("plot_subdir", "plot")),
+                output_name_templates={str(k): str(v) for k, v in out_names.items()},
+            ) 
 
-        Args:
-            config (dict[str, Any]): Parsed configuration dictionary.
-            model_name (str): Model name key in config.
+    @dataclass(frozen=True)
+    class ModelCfg:
+        """Model configuration metadata.
 
-        Returns:
-            ModelCfg: Constructed configuration instance.
+        Attributes:
+            name (str): Model name key.
+            environment (str): Environment label or tag.
+            model_path (Path): Path to the model file.
+            default_structure (str): Default structure name.
         """
-        m = config["models"][model_name]
-        return ModelCfg(
-            name=model_name,
-            environment=str(m.get("environment", "")),
-            model_path=Path(m.get("model_path", "")),
-            default_structure=str(m.get("material", "")),
-        )
+        name: str
+        environment: str
+        model_path: Path
+        default_structure: str
 
-@dataclass(frozen=True)
-class StructureCfg:
-    """Structure configuration for a run.
+        @staticmethod
+        def from_config(config: dict[str, Any], model_name: str) -> "ModelCfg":
+            """Build a ModelCfg from the main config dict.
 
-    Attributes:
-        name (str): Structure name key.
-        group (StructureGroup): "pure" or "defects".
-        unitcell_path (Path): Path to the unit cell file.
-        primitive_cell_path (Path | None): Path to primitive cell file.
-        is_file_relaxed (bool): Whether the input structure is relaxed.
-        supercell_matrix (tuple[int, int, int] | np.ndarray): Supercell matrix.
-        delta (float): Displacement distance in angstrom.
-        want_band_structure (bool): Whether to compute band structure.
-        kpts (list[int]): k-point mesh for DOS.
-        npts (int): Number of points along band path segments.
-        width_ev (float): Smearing width in eV.
-    """
+            Args:
+                config (dict[str, Any]): Parsed configuration dictionary.
+                model_name (str): Model name key in config.
 
-    name: str
-    group: StructureGroup
-    unitcell_path: Path
-    primitive_cell_path: Path | None
-    is_file_relaxed: bool
-    supercell_matrix: tuple[int, int, int] | np.ndarray
-    delta: float
-    want_band_structure: bool
-    kpts: list[int]
-    npts: int
-    width_ev: float
+            Returns:
+                ModelCfg: Constructed configuration instance.
+            """
+            m = config["models"][model_name]
+            return ModelCfg(
+                name=model_name,
+                environment=str(m.get("environment", "")),
+                model_path=Path(m.get("model_path", "")),
+                default_structure=str(m.get("material", "")),
+            )
 
-    @staticmethod
-    def from_config(config: dict[str, Any], structure_name: str) -> "StructureCfg":
-        """Build a StructureCfg from the main config dict.
+    @dataclass(frozen=True)
+    class StructureCfg:
+        """Structure configuration for a run.
 
-        Args:
-            config (dict[str, Any]): Parsed configuration dictionary.
-            structure_name (str): Structure name key in config.
-
-        Returns:
-            StructureCfg: Constructed configuration instance.
+        Attributes:
+            name (str): Structure name key.
+            group (StructureGroup): "pure" or "defects".
+            unitcell_path (Path): Path to the unit cell file.
+            primitive_cell_path (Path | None): Path to primitive cell file.
+            is_file_relaxed (bool): Whether the input structure is relaxed.
+            supercell_matrix (tuple[int, int, int] | np.ndarray): Supercell matrix.
+            delta (float): Displacement distance in angstrom.
+            want_band_structure (bool): Whether to compute band structure.
+            kpts (list[int]): k-point mesh for DOS.
+            npts (int): Number of points along band path segments.
+            width_ev (float): Smearing width in eV.
         """
-        structures = config["structures"]
-        group: StructureGroup | None = None
-        entry: dict[str, Any] | None = None
 
-        for g in ("pure", "defects"):
-            if g in structures and isinstance(structures[g], dict) and structure_name in structures[g]:
-                group = g  
-                entry = structures[g][structure_name]
-                break
+        name: str
+        group: StructureGroup
+        unitcell_path: Path
+        primitive_cell_path: Path | None
+        is_file_relaxed: bool
+        supercell_matrix: tuple[int, int, int] | np.ndarray
+        delta: float
+        want_band_structure: bool
+        kpts: list[int]
+        npts: int
+        width_ev: float
 
-        if entry is None or group is None:
-            raise ValueError(f"Structure {structure_name!r} not found under structures.pure/defects.")
+        @staticmethod
+        def from_config(config: dict[str, Any], structure_name: str) -> "StructureCfg":
+            """Build a StructureCfg from the main config dict.
 
-        prim_rel = entry.get("primitive_cell_path", None)
+            Args:
+                config (dict[str, Any]): Parsed configuration dictionary.
+                structure_name (str): Structure name key in config.
 
-        unit_rel = entry.get("unitcell_path", None)
-        if unit_rel is None:
-            raise ValueError("Missing required key: unitcell_path")
+            Returns:
+                StructureCfg: Constructed configuration instance.
+            """
+            structures = config["structures"]
+            group: StructureGroup | None = None
+            entry: dict[str, Any] | None = None
 
-        return StructureCfg(
-            name=structure_name,
-            group=group,
-            unitcell_path=Path(unit_rel),
-            primitive_cell_path=Path(prim_rel) if prim_rel else None,
-            is_file_relaxed=bool(entry.get("is_file_relaxed", False)),
-            supercell_matrix=_parse_supercell_matrix(entry.get("supercell_matrix")),
-            delta=float(entry.get("delta", 0.01)),
-            want_band_structure=bool(entry.get("want_band_structure", True)),
-            kpts=_parse_kpts(entry.get("kpts", [12, 12, 12])),
-            npts=int(entry.get("npts", 400)),
-            width_ev=float(entry.get("width_ev", 0.0)),
-        )
+            for g in ("pure", "defects"):
+                if g in structures and isinstance(structures[g], dict) and structure_name in structures[g]:
+                    group = g  
+                    entry = structures[g][structure_name]
+                    break
+
+            if entry is None or group is None:
+                raise ValueError(f"Structure {structure_name!r} not found under structures.pure/defects.")
+
+            prim_rel = entry.get("primitive_cell_path", None)
+
+            unit_rel = entry.get("unitcell_path", None)
+            if unit_rel is None:
+                raise ValueError("Missing required key: unitcell_path")
+
+            return StructureCfg(
+                name=structure_name,
+                group=group,
+                unitcell_path=Path(unit_rel),
+                primitive_cell_path=Path(prim_rel) if prim_rel else None,
+                is_file_relaxed=bool(entry.get("is_file_relaxed", False)),
+                supercell_matrix=_parse_supercell_matrix(entry.get("supercell_matrix")),
+                delta=float(entry.get("delta", 0.01)),
+                want_band_structure=bool(entry.get("want_band_structure", True)),
+                kpts=_parse_kpts(entry.get("kpts", [12, 12, 12])),
+                npts=int(entry.get("npts", 400)),
+                width_ev=float(entry.get("width_ev", 0.0)),
+            )
 
 # ═══════════════════════════════════
 # default naming. mutable ofc. {base} is the filler for the model+material. 
 # Since everything is unique via a) the Model, and b) the material, keep the model 
-# names and material names unique and each iteration will have unique files 
+# names and material names unique and each run will have unique files PER model x material.
+# for same runs it WILL rewrite. 
 # ════════════════════════════════════
 
-# THE NAMES OF THE FILES THEMSELVES
-DEFAULT_NAME_TEMPLATES: dict[str, str] = {
-    # raw
-    "relax_traj": "{base}_relax.traj",
-    "relaxed_poscar": "{base}_relaxed.poscar",
-    "phonons_obj": "{base}_phonons.yaml",
-    "force_constants": "{base}_force_constants.yaml",
-    "phonon_dos_npz": "{base}_phonon_dos.npz",
-    "phonon_band_yaml": "{base}_phonon_band.yaml",
-    # plots (optional)
-    "phonon_band_plot": "{base}_phonon_band_plot.png",
-    "phonon_dispersion_dos_plot": "{base}_phonon_dispersion_dos.png",
-    "phonon_dos_plot": "{base}_phonon_dos.png",
-    # Plumipy
-    "band_plumipy": "band.yaml",
-    "contcar_gs_plumipy": "CONTCAR_GS",
-    "outcar_gs_plumipy": "OUTCAR_GS"
-}
 
-# THE DIRECTORIES THE FILES ARE WRITTEN TO. 
-@dataclass(frozen=True)
-class OutputPlan:
-    """Resolved output directories and filename mappings.
 
-    Attributes:
-        results_root (Path): Root output directory for this run.
-        raw_dir (Path): Directory for raw outputs.
-        plot_dir (Path): Directory for plot outputs.
-        names (dict[str, str]): Output name templates mapped to keys.
-    """
-    results_root: Path
-    raw_dir: Path
-    plot_dir: Path
-    names: dict[str, str]
+if False: # (added this to config_classes)
+    # THE NAMES OF THE FILES THEMSELVES
+    DEFAULT_NAME_TEMPLATES: dict[str, str] = {
+        # raw
+        "relax_traj": "{base}_relax.traj",
+        "relaxed_poscar": "{base}_relaxed.poscar",
+        "phonons_obj": "{base}_phonons.yaml",
+        "force_constants": "{base}_force_constants.yaml",
+        "phonon_dos_npz": "{base}_phonon_dos.npz",
+        "phonon_band_yaml": "{base}_phonon_band.yaml",
+        # plots (optional)
+        "phonon_band_plot": "{base}_phonon_band_plot.png",
+        "phonon_dispersion_dos_plot": "{base}_phonon_dispersion_dos.png",
+        "phonon_dos_plot": "{base}_phonon_dos.png",
+        # Plumipy
+        "band_plumipy": "{base}_band.yaml",
+        "contcar_gs_plumipy": "{base}_CONTCAR_GS",
+        "outcar_gs_plumipy": "{base}_OUTCAR_GS"
+    }
+    # THE DIRECTORIES THE FILES ARE WRITTEN TO. 
+    @dataclass(frozen=True)
+    class OutputPlan:
+        """Resolved output directories and filename mappings.
 
-    def raw(self, key: str) -> Path:
-        """Resolve a raw output path by key.
+        Attributes:
+            results_root (Path): Root output directory for this run.
+            raw_dir (Path): Directory for raw outputs.
+            plot_dir (Path): Directory for plot outputs.
+            names (dict[str, str]): Output name templates mapped to keys.
+        """
+        results_root: Path
+        raw_dir: Path
+        plot_dir: Path
+        names: dict[str, str]
+
+        def raw(self, key: str) -> Path:
+            """Resolve a raw output path by key.
+
+            Args:
+                key (str): Output name key.
+
+            Returns:
+                Path: Resolved raw output path.
+            """
+            if key not in self.names:
+                raise KeyError(f"Unknown output key: {key}")
+            p = _resolve_path(self.raw_dir, self.names[key])
+            assert p is not None
+            return p
+
+        def plot(self, key: str) -> Path:
+            """Resolve a plot output path by key.
+
+            Args:
+                key (str): Output name key.
+
+            Returns:
+                Path: Resolved plot output path.
+            """
+            if key not in self.names:
+                raise KeyError(f"Unknown output key: {key}")
+            p = _resolve_path(self.plot_dir, self.names[key])
+            assert p is not None
+            return p
+
+        def plot_plumipy(self, key: str) -> Path: 
+            """Resolve a plumipy plot output path by key.
+
+            Args:
+                key (str): Output name key.
+
+            Returns:
+                Path: Resolved plumipy output path.
+            """
+            if key not in self.names:
+                raise KeyError(f"Unknown output key: {key}")
+            p = _resolve_path(self.raw_dir / "Plumipy_Files", self.names[key])
+            assert p is not None
+            return p
+
+    # ASSEMBLING THE NAMES AND OUTPUT DIRECTORIES INTO AN OUTPUT PLAN
+
+    def build_output_plan(
+        exec_cfg: ExecutiveCfg,
+        model: ModelCfg,
+        structure: StructureCfg,
+        run_root: Path,
+    ) -> OutputPlan:
+        """Create an OutputPlan for a specific model/structure run.
 
         Args:
-            key (str): Output name key.
+            exec_cfg (ExecutiveCfg): Execution configuration.
+            model (ModelCfg): Model configuration.
+            structure (StructureCfg): Structure configuration.
+            run_root (Path): Root directory to resolve relative paths.
 
         Returns:
-            Path: Resolved raw output path.
+            OutputPlan: Resolved output plan.
         """
-        if key not in self.names:
-            raise KeyError(f"Unknown output key: {key}")
-        p = _resolve_path(self.raw_dir, self.names[key])
-        assert p is not None
-        return p
 
-    def plot(self, key: str) -> Path:
-        """Resolve a plot output path by key.
+        # THE BASE IDENTIFIER FOR THE FILES
+        base = f"{model.name}_{structure.name}"
 
-        Args:
-            key (str): Output name key.
+        templates = dict(DEFAULT_NAME_TEMPLATES) # ensures its a dictionary.copy() 
+        templates.update(exec_cfg.output_name_templates)
 
-        Returns:
-            Path: Resolved plot output path.
-        """
-        if key not in self.names:
-            raise KeyError(f"Unknown output key: {key}")
-        p = _resolve_path(self.plot_dir, self.names[key])
-        assert p is not None
-        return p
+        names = {k: v.format(base=base, model=model.name, structure=structure.name) for k, v in templates.items()}
 
-    def plot_plumipy(self, key: str) -> Path: 
-        """Resolve a plumipy plot output path by key.
+        results_root = (run_root / exec_cfg.results_root / model.name / structure.name).resolve()
+        raw_dir = results_root / exec_cfg.raw_subdir
+        plot_dir = results_root / exec_cfg.plot_subdir
+        raw_dir.mkdir(parents=True, exist_ok=True)
+        plot_dir.mkdir(parents=True, exist_ok=True)
 
-        Args:
-            key (str): Output name key.
-
-        Returns:
-            Path: Resolved plumipy output path.
-        """
-        if key not in self.names:
-            raise KeyError(f"Unknown output key: {key}")
-        p = _resolve_path(self.raw_dir / "Plumipy_Files", self.names[key])
-        assert p is not None
-        return p
-
-# ASSEMBLING THE NAMES AND OUTPUT DIRECTORIES INTO AN OUTPUT PLAN
-
-def build_output_plan(
-    exec_cfg: ExecutiveCfg,
-    model: ModelCfg,
-    structure: StructureCfg,
-    run_root: Path,
-) -> OutputPlan:
-    """Create an OutputPlan for a specific model/structure run.
-
-    Args:
-        exec_cfg (ExecutiveCfg): Execution configuration.
-        model (ModelCfg): Model configuration.
-        structure (StructureCfg): Structure configuration.
-        run_root (Path): Root directory to resolve relative paths.
-
-    Returns:
-        OutputPlan: Resolved output plan.
-    """
-
-    # THE BASE IDENTIFIER FOR THE FILES
-    base = f"{model.name}_{structure.name}"
-
-    templates = dict(DEFAULT_NAME_TEMPLATES) # ensures its a dictionary.copy() 
-    templates.update(exec_cfg.output_name_templates)
-
-    names = {k: v.format(base=base, model=model.name, structure=structure.name) for k, v in templates.items()}
-
-    results_root = (run_root / exec_cfg.results_root / model.name / structure.name).resolve()
-    raw_dir = results_root / exec_cfg.raw_subdir
-    plot_dir = results_root / exec_cfg.plot_subdir
-    raw_dir.mkdir(parents=True, exist_ok=True)
-    plot_dir.mkdir(parents=True, exist_ok=True)
-
-    return OutputPlan(results_root=results_root, raw_dir=raw_dir, plot_dir=plot_dir, names=names)
+        return OutputPlan(results_root=results_root, raw_dir=raw_dir, plot_dir=plot_dir, names=names)
 
 
 # ════════════════════════════════════
@@ -817,10 +825,15 @@ def main() -> int:
     """Entry point for the phonon pipeline command line .
 
     Returns:
-        int: Process exit code.
+        int: exit code.
     """
     parser = argparse.ArgumentParser(description="Compute phonons, DOS, and optional band structure.")
-    parser.add_argument("model_name", help="Model name from config.yml models: ...")
+    parser.add_argument(
+        "model_name",
+        nargs="?",
+        default=None,
+        help="Model name from config.yml models. If omitted, uses mlip_phonons.defaults.model_name.",
+    )
     parser.add_argument(
         "--structure",
         help="Override which structure to run (key under structures.pure/defects). "
@@ -836,11 +849,22 @@ def main() -> int:
 
     config_path = Path(args.config).expanduser().resolve()
     run_root = config_path.parent
-    try:
 
-        config = _load_yaml(config_path)
-        exec_cfg = ExecutiveCfg.from_dict(config)
-        model_cfg = ModelCfg.from_config(config, args.model_name)
+    config = _load_yaml(config_path)
+    defaults_cfg = (config.get("mlip_phonons", {}) or {}).get("defaults", {}) or {}
+    default_model = defaults_cfg.get("model_name")
+    model_name = args.model_name or default_model
+    if not model_name:
+        models_cfg = config.get("models", {}) or {}
+        model_name = next(iter(models_cfg.keys()), None)
+    if not model_name:
+        raise SystemExit("Missing model_name. Set mlip_phonons.defaults.model_name in config.yml.")
+    model_name = str(model_name)
+    structure_override = args.structure or defaults_cfg.get("structure") or None
+
+    try:
+        exec_cfg = ExecutiveCfg.from_config(config)
+        model_cfg = ModelCfg.from_config(config, model_name)
 
         assets_root_cfg = _get_config_path(config, "assets_root")
         structures_root_cfg = _get_config_path(config, "structures_root")
@@ -851,7 +875,7 @@ def main() -> int:
             else (run_root / "assets" / "structures")
         )
 
-        structure_name = args.structure or model_cfg.default_structure
+        structure_name = structure_override or model_cfg.default_structure
         structure_cfg = StructureCfg.from_config(config, structure_name)
 
         out = build_output_plan(exec_cfg, model_cfg, structure_cfg, run_root)
@@ -887,9 +911,7 @@ def main() -> int:
                 print(f"  - {k}: {p}")
 
     except Exception as e:
-        config = _load_yaml(config_path)
-        model_cfg = ModelCfg.from_config(config, args.model_name)
-        msg = f"{model_cfg.name} failed. error is {e}. Moving on to next model."
+        msg = f"{model_name} failed. error is {e}. Moving on to next model."
         print(msg)
         with open("test/errorlog.txt", "a", encoding="utf-8") as f:
             f.write(msg + "\n")

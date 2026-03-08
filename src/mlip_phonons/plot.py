@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 def _auto_title_from_phonon(phonon: Phonopy) -> str | None:
-    """Build a descriptive plot title from a Phonopy object.
+    """Build a plot title from a Phonopy object.
 
     Args:
         phonon (Phonopy): Phonopy object with unitcell/primitive/supercell info.

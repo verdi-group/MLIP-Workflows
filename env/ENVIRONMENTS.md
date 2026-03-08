@@ -11,6 +11,8 @@ For the models i have currently implemented, i have attached their .yml files. H
 
 NOTE: install this package first. Clone the repository, cd to the project directory, and for each environment (for each model) you use,  run: 
 
+NOTE: currently, to implement NEB path detection benchmarking, i needed to implemenet d3 term correction. I tried this initialy with a pip install of DFTD3, however this took way too long and didnt come with the native OpenMP libraries (libgomp.so.1), so i uninstalled these and then used the conda-forge channel to reinstall DFTD3. Thus you will see that i have installed using conda forge after my pip installations, which is sub ideal. however the below is attached as a direct command for command step by step as to what i ran to obtain my environments, hence i have included these steps. NOTE that i will in due time reconstruct all environments systematically and test everything is still working. 
+
 ```
 pip install -e . 
 ```
@@ -25,6 +27,10 @@ conda install -c conda-forge phonopy
 pip install upet
 pip install orb-models
 pip install "pynanoflann@git+https://github.com/dwastberg/pynanoflann#egg=af434039ae14bedcbb838a7808924d6689274168"
+pip install dftd3
+pip uninstall -y dftd3 dftd3-python simple-dftd3
+conda remove -y dftd3-python simple-dftd3
+conda install -y -c conda-forge dftd3-python simple-dftd3
 ```
 
 matgl_env installs: 
@@ -36,6 +42,10 @@ pip install dgl -f https://data.dgl.ai/wheels/torch-2.2/cu121/repo.html
 pip install matgl
 pip install ase
 pip install phonopy
+pip install dftd3
+pip uninstall -y dftd3 dftd3-python simple-dftd3
+conda remove -y dftd3-python simple-dftd3
+conda install -y -c conda-forge dftd3-python simple-dftd3
 ```
 
 mattersim_env installs: 
@@ -44,6 +54,10 @@ mattersim_env installs:
 conda create --name mattersim_env python=3.10 pip 
 pip install mattersim
 pip install phonopy
+pip install dftd3
+pip uninstall -y dftd3 dftd3-python simple-dftd3
+conda remove -y dftd3-python simple-dftd3
+conda install -y -c conda-forge dftd3-python simple-dftd3
 ```
 
 NOTE: for the matgl installation, at that time DGL (a matgl backend that governed model tensor operation) was not supported and thus had to be manually installed since the matgl models had not been shifted from dgl to pytorch (PyG) yet. This was january 2026, and may have since changed. If you are getting some backend error with the installation, Read their updates here:
@@ -84,8 +98,6 @@ for pet-mad:
 conda create --name petmad_env python=3.10 pip -y
 pip install upet 
 ```
-
-
 
 
 

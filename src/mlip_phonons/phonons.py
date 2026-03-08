@@ -164,10 +164,6 @@ def get_phonopy_kpath_ase(
             
     return path, labels
 
-#TODO: figure out if it is worth accounting for getting the band structure of a defect. particular question is whether if i do get the band path of the defect by using a pristing primitive cell, will the band structure calculator account for the slight deviations from those coordaintes due to relaxation?
-
-import numpy as np
-from pathlib import Path
 
 def write_gamma_band_yaml_for_plumipy(phonon, outpath: str | Path):
     """Write a single-Gamma band.yaml file for plumipy.

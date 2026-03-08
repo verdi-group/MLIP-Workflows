@@ -5,6 +5,8 @@ channels:
 dependencies:
   - python=3.10
   - pip
+  - dftd3-python
+  - simple-dftd3
   - pip:
       - mattersim
       - phonopy

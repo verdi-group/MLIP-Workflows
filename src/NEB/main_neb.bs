@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+CONFIG_PATH="${REPO_ROOT}/config.yml"
+
+eval "$(conda shell.bash hook)"
+export LD_PRELOAD="${CONDA_PREFIX}/lib/libgomp.so.1"
+
+OMP_NUM_THREADS=12 
+MKL_NUM_THREADS=12 
+OPENBLAS_NUM_THREADS=12
+
+models_file=$(mktemp)
+python - <<PY > "$models_file"
+import yaml
+from pathlib import Path
+config_path = Path(r"$CONFIG_PATH")
+with config_path.open("r", encoding="utf-8") as f:
+    data = yaml.safe_load(f) or {}
+for name, cfg in data.get("models", {}).items():
+    env = cfg.get("environment")
+    if not env:
+        raise SystemExit(f"Missing environment for {name}")
+    print(f"{name}\t{env}")
+PY
+
+while IFS=$'\t' read -r model env; do
+  conda activate "$env"
+  python "${REPO_ROOT}/src/mlip_phonons/tools/free_gpu.py"
+  python "${REPO_ROOT}/src/NEB/run_neb_raw_v2.py" --config "$CONFIG_PATH" "$model"
+  conda deactivate
+done < "$models_file"
+rm "$models_file"

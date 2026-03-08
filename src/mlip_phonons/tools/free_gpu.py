@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import gc
 import torch
 
@@ -14,4 +15,4 @@ def free_gpu():
 
 # usage
 #del calc
-#free_gpu()
+free_gpu()

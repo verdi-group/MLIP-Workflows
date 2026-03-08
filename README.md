@@ -41,16 +41,13 @@ Model weights/checkpoints are expected under `assets/models/`
 
 ## Run Phonon Workflow
 
-The main entry point is the console script:
+The main entry point is the console script (defaults read from `config.yml` under `mlip_phonons.defaults`):
 
 ```bash
-mlip-phonons <model_name> --config config.yml
-```
-
-Override the structure/material key from `config.yml`:
-
-```bash
-mlip-phonons <model_name> --config config.yml --structure <structure_key>
+mlip-phonons
+mlip-phonons <model_name>
+mlip-phonons --config config.yml
+mlip-phonons <model_name> --structure <structure_key>
 ```
 
 ## Outputs
@@ -88,4 +85,48 @@ Reports are printed and also saved to `resultsPhonCoupling/phonon_coupling_repor
 ## PL Plot Comparison 
 
 `src/plumipy_run/exploratory_script.py` contains helpers to call `plumipy.calculate_spectrum` and generate comparison plots (partial Huang–Rhys, spectral function, PL, IPR). Requires plumipy package installed.
+
+
+
+
+## 18/02 feedback 
+
+Check with mace dispersion = True. see the performance between 
+
+also check just calculating the d3 term with ase. 
+Read up on the fine tuning strategies optimal for singularly NEB and Phonons. 
+
+_focus on one or two families of models and try series of fine tuning strategies. 
+
+have a look at connor's RDM for the data. 
+
+in principle i should be able to leave the minimisation. 
+ 
+check the output of the hungarian minimisation and that it is operating properly. 
+
+next step is to clean up the repo and check that it is working for connors defect calculations. get it ready for actual industrial application. 
+
+look at reproducing the structures with mlip. (shake n break/brake) 
+
+We need to test this on a bunch of different defects and paths. 
+
+fine tuning techniques for the top models. 
+
+after this, molecular dynamics. _
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
