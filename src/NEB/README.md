@@ -33,7 +33,7 @@ Useful flags:
 - `--relax-endpoints` / `--no-relax-endpoints`: relax initial/final endpoints before NEB.
 - `--remap-f-i` / `--no-remap-f-i`: apply within‑species remapping to the final endpoint before interpolation.
 - `--device`, `--dtype`: control MLIP device/dtype.
-- `--overwrite` / `--no-overwrite`: reuse the same results root instead of suffixing.
+- `--overwrite` / `--no-overwrite`: reuse the same results root instead of suffixing. If it is set to False, the resultsroot will be used, but if the model is found in that results root, it will create another resultsNEB_i folder and write to that.
 
 ## Outputs
 

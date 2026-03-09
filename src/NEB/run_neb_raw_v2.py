@@ -11,13 +11,13 @@ from ase.io import read
 from ase.mep import NEB
 from ase.optimize import FIRE
 import torch
-import os
+import os 
 
 # this file lives in <repo>/src/NEB/run_neb_raw.py
-repo_root = Path(__file__).resolve().parents[2]
-src_root = repo_root / "src"
-if str(src_root) not in sys.path:
-    sys.path.insert(0, str(src_root))
+REPO_ROOT = Path(__file__).resolve().parents[2]
+SRC_ROOT = REPO_ROOT / "src"
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
 
 from NEB.neb_tools.neb_analysis import (
     LoopDetected,
@@ -32,7 +32,6 @@ from NEB.neb_tools.neb_parsers import (
     choose_n_images,
     export_vasp_neb_paths,
     read_endpoints,
-    resolve_config_path,
     write_neb_npz,
     write_neb_summary,
 )
@@ -141,14 +140,14 @@ def _resolve_path(root: Path, value: str | Path | None) -> Path | None:
 
 
 def main(argv: list[str] | None = None, *, repo_root: Path | None = None) -> int:
-    repo_root = Path(repo_root) if repo_root is not None else repo_root
+    repo_root = Path(repo_root) if repo_root is not None else REPO_ROOT
     if str(repo_root / "src") not in sys.path:
         sys.path.insert(0, str(repo_root / "src"))
 
     pre_parser = argparse.ArgumentParser(add_help=False)
-    pre_parser.add_argument("--config", type=Path, default=None)
+    pre_parser.add_argument("--config", type=Path, default=Path.cwd() / "config.yml")
     pre_args, _ = pre_parser.parse_known_args(argv)
-    config_path = resolve_config_path(pre_args.config, repo_root=repo_root)
+    config_path = pre_args.config.expanduser().resolve()
     config = _load_yaml(config_path)
     run_root = config_path.parent
 
@@ -240,7 +239,7 @@ def main(argv: list[str] | None = None, *, repo_root: Path | None = None) -> int
         return compare_main(compare_argv, repo_root=repo_root)
 
     results_root = args.results_root
-    if (not args.overwrite) and results_root.exists():
+    if (not args.overwrite) and Path(results_root/model_name).exists():
         for i in range(1, 1_000_000):
             cand = results_root.with_name(f"{results_root.name}_{i}")
             if not cand.exists():

@@ -28,7 +28,7 @@ from .tools.plumipy_conversions import write_contcar_for_plumipy, write_minimal_
 from .config_classes import ExecutiveCfg, ModelCfg, StructureCfg
 
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+repo_root = Path(__file__).resolve().parents[2]
 
 
 matplotlib.use("Agg")  # no GUI, no .show()
@@ -845,8 +845,8 @@ def main() -> int:
     )
     parser.add_argument(
         "--config",
-        help=f"Path to config.yml (default: {REPO_ROOT / 'config.yml'})",
-        default=str(REPO_ROOT / "config.yml"),
+        help=f"Path to config.yml (default: {repo_root / 'config.yml'})",
+        default=str(repo_root / "config.yml"),
     )
     args = parser.parse_args()
 

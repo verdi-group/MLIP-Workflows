@@ -8,9 +8,9 @@ CONFIG_PATH="${REPO_ROOT}/config.yml"
 eval "$(conda shell.bash hook)"
 export LD_PRELOAD="${CONDA_PREFIX}/lib/libgomp.so.1"
 
-OMP_NUM_THREADS=12 
-MKL_NUM_THREADS=12 
-OPENBLAS_NUM_THREADS=12
+export OMP_NUM_THREADS=16
+export MKL_NUM_THREADS=16
+export OPENBLAS_NUM_THREADS=16
 
 models_file=$(mktemp)
 python - <<PY > "$models_file"

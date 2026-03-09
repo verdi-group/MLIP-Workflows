@@ -53,11 +53,11 @@ mlip_phonons:
 
 neb:
   defaults:
-    model_name: ivac0_neb_ft  # Default CLI model name used when `mlip-neb` is run without a positional model argument.
-    results_root: resultsNEB  # Base output directory for NEB runs; if it already exists and `overwrite` is false, a suffixed sibling is created instead.
+    model_name: ivac0_neb_ft  # Default model when `mlip-neb` is run without a model argument.
+    results_root: resultsNEB123  # Base output directory for NEB runs; if a folder of model data exists within it, it by default creates and writes to a sibling folder.
     models_root: assets/models  # Root directory passed to `get_calc_object` to locate the MLIP checkpoint/weights for `model_name`.
-    #(can also be the actual folder the model is in, it is just left like this so that, in general, when you have several model families, 
-    #one #does not need a crap tonne of conditionals for listing various models_root just to operate several #families of models)
+    # can also be the actual folder the model is in, it is just left like this so that, in general, when you have several model families, 
+    # one #does not need a crap tonne of conditionals for listing various models_root just to operate several #families of models)
 
     structures_dir: assets/structures/NEB  # Fallback folder used to derive `poscar_i`, `poscar_f`, and `dft_neb_dat` when those paths are omitted.
     poscar_i: assets/structures/NEB/POSCAR_i  # Initial endpoint structure; becomes image 0 after optional endpoint relaxation.
@@ -65,7 +65,8 @@ neb:
     dft_neb_dat: assets/structures/NEB/neb.dat  # Optional DFT reference `neb.dat`; used to infer image count and later compare MLIP paths against DFT.
     vasp_inputs_dir: null  # Optional directory containing `INCAR`, `KPOINTS`, and `POTCAR` to copy into the exported `vasp_mlip_d3/` and `vasp_ci/` folders.
 
-    # (i obviously cannot create the INCAR, KPOINTS, or POTCAR, #it only creates the 00, 01, 02 etc subfolders)
+    # (i obviously cannot create the INCAR, KPOINTS, or POTCAR, it only creates the 00, 01, 02 etc subfolders with the image poscar within them)
+
     relax_endpoints: true  # If true, relax the two endpoint structures with the chosen calculator before building the interpolated NEB path.
     remap_f_i: false  # If true, reorder the final endpoint within each species by Hungarian matching so atoms map more cleanly onto the initial endpoint.
     include_vdw: true  # If true, use the dispersion-corrected calculator where available and run the extra MLIP+D3 refinement stage before climbing-image NEB.
@@ -77,8 +78,8 @@ neb:
     n_images_fallback: 9  # Total number of NEB images (including endpoints) if `--n-images` is unset and `dft_neb_dat` is missing or unreadable.
     maxstep_mlip_guess: 0.05  # FIRE `maxstep` for the first coarse MLIP-only NEB stage.
     fmax_mlip_guess: 0.03  # Force convergence target for the first coarse MLIP-only NEB stage.
-    steps_mlip_guess: 3000  # Maximum FIRE steps for the first coarse MLIP-only NEB stage.
-    k_spring_mlip: 0.6  # NEB spring constant used in the first coarse MLIP-only stage.
+    steps_mlip_guess: 3000  # Maximum FIRE steps for MLIP-only NEB stage.
+    k_spring_mlip: 0.6  # NEB spring constant used in the MLIP-only stage.
     k_spring: 0.6  # NEB spring constant used in the later stages: MLIP+D3 refinement (if enabled) and climbing-image NEB.
     maxstep_mlip_d3: 0.03  # FIRE `maxstep` for the second stage that refines the path with the dispersion-corrected calculator.
     fmax_mlip_d3: 0.03  # Force convergence target for the second MLIP+D3 refinement stage.
@@ -93,19 +94,37 @@ neb:
 #models:
 # <model_name>:
 #   environment: <name of this models conda environment>
-#   material: <name of material model will analyse. This should be registered in material_config.yml>
+#   material: <name of material model will analyse. This should be registered in config.yml.structures.pure/defect>
 #
 # <model_name> should be the same name as what is checked in get_calc.py.
 
 # ════════════════════════════════════════════════════════════════════════=
 
 models:
+
+  # fine tuned models
+  ivac0_neb_ft: # fine tuned from mace-mpa-0-medium.
+    environment: mace_env
+    material: cbvn 
+  # MACE models
+  small-omat-0:
+    environment: mace_env
+    material: cbvn
+  mace-omat-0-medium:
+    environment: mace_env
+    material: cbvn
   mace-mpa-0-medium:
     environment: mace_env
     material: cbvn
-  ivac0_neb_ft: 
+
+    
+  mace-matpes-pbe-omat-ft:
     environment: mace_env
-    material: cbvn 
+    material: cbvn
+  mace-matpes-r2scan-omat-ft:
+    environment: mace_env
+    material: cbvn
+
   # M3GNet models
   M3GNet-ANI-1x-Subset-PES: # exclude this one. it is only for H C N O. not B (elements)
     environment: matgl_env
@@ -189,21 +208,6 @@ models:
     environment: matgl_env
     material: cbvn
 
-  # MACE models
-  small-omat-0:
-    environment: mace_env
-    material: cbvn
-  mace-omat-0-medium:
-    environment: mace_env
-    material: cbvn
-
-    
-  mace-matpes-pbe-omat-ft:
-    environment: mace_env
-    material: cbvn
-  mace-matpes-r2scan-omat-ft:
-    environment: mace_env
-    material: cbvn
   
   CHGNet-MatPES-r2SCAN-2025.2.10-2.7M-PES:
     environment: matgl_env
