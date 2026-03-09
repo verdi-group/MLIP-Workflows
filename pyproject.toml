@@ -15,8 +15,6 @@ dependencies = [
   "phonopy",
   "matplotlib",
   "torch",
-  "dftd3-python",
-  "simple-dftd3",
 ]
 
 [project.optional-dependencies]

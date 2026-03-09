@@ -6,22 +6,55 @@ Models that it currently compares are the Orb-materials, MACE, Mattersim, Upet, 
 
 ## Installation
 
+### Important: D3 (vdW) Dependencies For NEB
+
+`mlip-neb` can optionally add a D3 (vdW) correction during the `mlip_d3` refinement stage (and `config.yml` defaults `neb.defaults.include_vdw: true`).
+
+This D3 backend comes from the `dftd3-python` + `simple-dftd3` packages and should be installed from **conda-forge**. Pip-only installs are not reliable here (these packages are not always available on pip, and builds without OpenMP can be extremely slow on HPC). If you run `mlip-neb` with vdW enabled but do not have these installed, the D3 stage will be unusably slow or fail.
+
+Recommended install flow for any environment that will run NEB with vdW:
+
+```bash
+conda env create -f env/mace_env.yml
+conda activate mace_env
+python -m pip install -e .
+```
+Mace_env is the conda environment suited to run this package for mace, orb and petmad models. If you would like to use other models, use the other .yml files supplied in `./env/`. 
+
+This allows vast acceleration of the D3 calculations: Before you run the mlip-neb pipeline, you set: 
+
+```bash
+export LD_PRELOAD="${CONDA_PREFIX}/lib/libgomp.so.1" 
+
+export OMP_NUM_THREADS= <NUMBER OF CORES>
+export MKL_NUM_THREADS= <NUMBER OF CORES>
+export OPENBLAS_NUM_THREADS= <NUMBER OF CORES>
+```
+i have found that for <NUMBER OF CORES> to be 12 or 16 that D3 works marvellously, yet i have not tested for much more than that. 
+
+If you do not need vdW/D3, you can disable it for NEB runs (or disable it in config.yml):
+
+```bash
+mlip-neb --no-include-vdw
+```
+
 ### Standard installation
 
-Clone the repository, create a Python environment, activate it, then install from the repo root. Note that in some bash scripts in this repository, it posits the use of conda as an environment manager. However these bash scripts are only used for sweeping across many models, if you would only use this package to solely execute particular scripts via CLI then, of course, these do not require conda. An optional conda install route is supplied. 
+Clone the repository, create a Python environment, activate it, then install from the repo root.
+
+For most users (especially if you plan to run `mlip-neb` with vdW/D3), the recommended route is to use the provided Conda environment YAML so DFTD3 is installed from conda-forge:
 
 ```bash
 cd /scratch/user/$USER/mlip_phonons
 git clone https://github.com/rohanplatts/phonons-mlip.git
 cd phonons-mlip
 
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
+conda env create -f env/mace_env.yml  # mace example. 
+conda activate mace_env
 python -m pip install -e .
 ```
 
-Install model backends, the options are:
+Install additional model backends (if you are not using the provided env YAMLs), the options are:
 
 ```bash
 python -m pip install -e '.[mace]'
@@ -30,6 +63,7 @@ python -m pip install -e '.[matgl]'
 python -m pip install -e '.[pet]'
 python -m pip install -e '.[orb]'
 ```
+
 If you are planning on using several families of models, i would recomend using conda, it will save you pain. I would also recommend not using the editable install to obtain such a loadout, and instead create and install all of the necessary environments using `/env/ENVIRONMENTS.md`. After you finish with this, then for each environment you can install the editable for this package, and you will have CLI access but with greater freedom across all currently covered model families.
  
 Notes:
@@ -76,7 +110,7 @@ Notes:
 
 #### 2. Choose an environment manager
 
-`miniforge` is recommended on HPC. If you prefer `venv`, that is also fine.
+`miniforge` is recommended on HPC. 
 
 ##### Option A: Miniforge / Conda
 
@@ -93,17 +127,6 @@ module load miniforge/25.3.0-3
 source "$ROOTMINIFORGE/etc/profile.d/conda.sh"
 ```
 
-Create and activate an environment:
-
-```bash
-conda create -n mace_env python=3.12 -y
-conda activate mace_env
-```
-
----
-
-#### 3. Clone the repository
-
 Create a working directory in scratch, then clone the repository:
 
 ```bash
@@ -111,7 +134,19 @@ mkdir -p /scratch/user/$USER/mlip_phonons
 cd /scratch/user/$USER/mlip_phonons
 
 git clone https://github.com/rohanplatts/phonons-mlip.git
+
+```
+
+---
+
+#### 3. Create the environment from the .yml in env/
+
+Create and activate an environment:
+
+```bash
 cd phonons-mlip
+conda env create -f env/mace_env.yml
+conda activate mace_env
 ```
 
 ---
@@ -121,10 +156,11 @@ cd phonons-mlip
 From the repository root:
 
 ```bash
-python -m pip install --upgrade pip
-python -m pip install -e '.[mace]'
+python -m pip install -e .
 ```
-Above we are installing the mace_env as an example. 
+Above we are installing the package into the active environment. 
+
+If you plan to run NEB with `include_vdw: true`, prefer using `conda env create -f env/mace_env.yml` (or other env YAMLs) so `dftd3-python` and `simple-dftd3` come from conda-forge. (Pip does not have them)
 
 Install optional extras as needed:
 
@@ -163,13 +199,19 @@ Also check:
 
 #### 6. Daily environment activation on HPC
 
-If you are using Miniforge / Conda, a typical daily setup looks like:
+If you are using Miniforge / Conda, a typical daily setup, with d3 acceleration (via parallelising over cores):
 
 ```bash
 module purge
 module load miniforge/25.3.0-3
 source "$ROOTMINIFORGE/etc/profile.d/conda.sh"
 conda activate mlip_phonons
+
+export LD_PRELOAD="${CONDA_PREFIX}/lib/libgomp.so.1" 
+
+export OMP_NUM_THREADS= <NUMBER OF CORES>
+export MKL_NUM_THREADS= <NUMBER OF CORES>
+export OPENBLAS_NUM_THREADS= <NUMBER OF CORES>
 ```
 
 If you are using `venv`, a typical daily setup looks like:
