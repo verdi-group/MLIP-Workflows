@@ -34,6 +34,7 @@ from NEB.neb_tools.neb_parsers import (
     read_endpoints,
     write_neb_npz,
     write_neb_summary,
+    resolve_config_path,
 )
 
 
@@ -82,7 +83,7 @@ def _parse_args(
         "--remap-f-i",
         action=argparse.BooleanOptionalAction,
         default=default_remap_f_i,
-        help="Apply within-species Hungarian remapping to the final endpoint before interpolation.",
+        help="Apply within-species Hungarian remapping to the final endpoint before interpolation. This will also save the remapped poscar_f in the same folder as poscar_f.",
     )
     parser.add_argument(
         "--include-vdw",
@@ -96,12 +97,14 @@ def _parse_args(
         default=False,
         help="Run NEB_compare_all for the results root instead of a NEB run.",
     )
+    
     parser.add_argument(
         "--overwrite",
         action=argparse.BooleanOptionalAction,
         default=default_overwrite,
         help="Reuse (WARNING: if true it will overwrite previous results) the existing results directory instead of creating a new suffixed one.",
     )
+
     args = parser.parse_args(argv)
 
     return NEBInputs(
@@ -145,11 +148,13 @@ def main(argv: list[str] | None = None, *, repo_root: Path | None = None) -> int
         sys.path.insert(0, str(repo_root / "src"))
 
     pre_parser = argparse.ArgumentParser(add_help=False)
-    pre_parser.add_argument("--config", type=Path, default=Path.cwd() / "config.yml")
+    pre_parser.add_argument("--config", type=Path, default=None)
     pre_args, _ = pre_parser.parse_known_args(argv)
-    config_path = pre_args.config.expanduser().resolve()
+    config_path = resolve_config_path(pre_args.config, repo_root=repo_root)
+
     config = _load_yaml(config_path)
-    run_root = config_path.parent
+
+    run_root = config_path.parent 
 
     neb_cfg = config.get("neb", {}) or {}
     neb_defaults_cfg = neb_cfg.get("defaults", {}) or {}
@@ -237,6 +242,8 @@ def main(argv: list[str] | None = None, *, repo_root: Path | None = None) -> int
             compare_argv.extend(["--dft-neb-dat", str(args.dft_neb_dat)])
         compare_argv.append("--include-vdw" if args.include_vdw else "--no-include-vdw")
         return compare_main(compare_argv, repo_root=repo_root)
+    
+    
 
     results_root = args.results_root
     if (not args.overwrite) and Path(results_root/model_name).exists():
@@ -247,7 +254,6 @@ def main(argv: list[str] | None = None, *, repo_root: Path | None = None) -> int
                 break
     out_raw = (results_root / model_name / "raw").resolve()
     out_raw.mkdir(parents=True, exist_ok=True)
-
 
 
     a, b = read_endpoints(args.poscar_i, args.poscar_f)
@@ -275,6 +281,7 @@ def main(argv: list[str] | None = None, *, repo_root: Path | None = None) -> int
         dtype=dtype,
         include_vdw=False,
     )
+
     calc_vdw = None
     if args.include_vdw:
         calc_vdw = get_calc_object(
