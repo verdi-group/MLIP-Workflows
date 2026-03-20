@@ -75,6 +75,54 @@ def format_lattice(lattice: list[list[float]]) -> str:
     return " ".join(f"{x:.16g}" for row in lattice for x in row)
 
 
+def subtract_d3_correction(
+    symbols: list[str],
+    lattice: list[list[float]],
+    positions: list[tuple[float, float, float]],
+    forces: list[tuple[float, float, float]],
+    energy_ev: float,
+    *,
+    method: str = "pbe",
+    damping: str = "d3bj",
+    params_tweaks: dict[str, float] | None = None,
+    realspace_cutoff: dict[str, float] | None = None,
+    cache_api: bool = True,
+) -> tuple[float, list[tuple[float, float, float]], float]:
+    """Return labels with the D3 energy/forces subtracted off.
+
+    The returned tuple is:
+      (energy_without_d3_ev, forces_without_d3_ev_per_ang, d3_energy_ev)
+
+    This function imports ASE/s-dftd3 lazily so the script still works in
+    environments that only need counting or plain OUTCAR conversion.
+    """
+    
+    from ase import Atoms
+    from dftd3.ase import DFTD3
+    
+
+    d3_kwargs: dict[str, object] = {
+        "method": method,
+        "damping": damping,
+        "cache_api": cache_api,
+    }
+    if params_tweaks is not None:
+        d3_kwargs["params_tweaks"] = dict(params_tweaks)
+    if realspace_cutoff is not None:
+        d3_kwargs["realspace_cutoff"] = dict(realspace_cutoff)
+
+    atoms = Atoms(symbols=symbols, positions=positions, cell=lattice, pbc=(True, True, True))
+    atoms.calc = DFTD3(**d3_kwargs)
+
+    d3_energy_ev = float(atoms.get_potential_energy())
+    d3_forces = atoms.get_forces()
+    corrected_forces = [
+        (fx - float(dfx), fy - float(dfy), fz - float(dfz))
+        for (fx, fy, fz), (dfx, dfy, dfz) in zip(forces, d3_forces)
+    ]
+    return energy_ev - d3_energy_ev, corrected_forces, d3_energy_ev
+
+
 def write_frame(
     f: IO[str],
     symbols: list[str],
@@ -101,7 +149,7 @@ def write_frame(
 
 
 def iter_force_tables(outcar: Path, n_atoms: int) -> Iterable[tuple[int, float, list[tuple[float, float, float]], list[tuple[float, float, float]]]]:
-    """Yield (ionic_step, energy_ev, positions, forces) for each ionic step."""
+    """give (ionic_step, energy_ev, positions, forces) for each ionic step."""
     with open_text(outcar) as f:
         ionic_step = -1
         it = iter(f)
@@ -145,6 +193,34 @@ def main() -> int:
     ap.add_argument("--test-images", default="03")
     ap.add_argument("--no-split", action="store_true")
     ap.add_argument("--count-only", action="store_true")
+    ap.add_argument(
+        "--remove-d3",
+        action="store_true",
+        help="Subtract a D3 correction from the parsed energies/forces before writing extxyz.",
+    )
+    ap.add_argument(
+        "--d3-method",
+        default="pbe",
+        help="DFT-D3 method name used to parameterize the correction, e.g. pbe.",
+    )
+    ap.add_argument(
+        "--d3-damping",
+        default="d3bj",
+        help="DFT-D3 damping scheme, e.g. d3bj or d3zero.",
+    )
+    ap.add_argument(
+        "--d3-cache-api",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Reuse the internal D3 API object across frames when possible.",
+    )
+    ap.add_argument(
+        "--d3-param-tweak",
+        action="append",
+        default=[],
+        metavar="KEY=VALUE",
+        help="Extra D3 damping parameter tweak, repeatable, e.g. --d3-param-tweak s9=0.0",
+    )
     args = ap.parse_args()
 
     images = [x.strip() for x in args.images.split(",") if x.strip()]
@@ -154,6 +230,24 @@ def main() -> int:
         raise SystemExit("val-images and test-images overlap")
     if args.stride < 1:
         raise SystemExit("--stride must be >= 1")
+
+    if args.remove_d3:
+        print("WARNING: d3 term correction will be subtracted.")
+
+    d3_params_tweaks: dict[str, float] | None = None
+    if args.d3_param_tweak:
+        d3_params_tweaks = {}
+        for item in args.d3_param_tweak:
+            if "=" not in item:
+                raise SystemExit(f"Invalid --d3-param-tweak '{item}', expected KEY=VALUE")
+            key, value = item.split("=", 1)
+            key = key.strip()
+            if not key:
+                raise SystemExit(f"Invalid --d3-param-tweak '{item}', empty key")
+            try:
+                d3_params_tweaks[key] = float(value)
+            except ValueError as exc:
+                raise SystemExit(f"Invalid float in --d3-param-tweak '{item}'") from exc
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
     out_all = args.out_dir / f"{args.prefix}_all.extxyz"
@@ -187,56 +281,99 @@ def main() -> int:
                     continue
 
                 if args.stride == 1 or (step % args.stride == 0):
+                    E_use = E
+                    frc_use = frc
+                    if args.remove_d3:
+                        
+                        E_use, frc_use, _ = subtract_d3_correction(
+                            symbols,
+                            lattice,
+                            pos,
+                            frc,
+                            E,
+                            method=args.d3_method,
+                            damping=args.d3_damping,
+                            params_tweaks=d3_params_tweaks,
+                            cache_api=args.d3_cache_api,
+                        )
                     count_img += 1
                     wrote_steps.add(step)
                     if not args.count_only:
-                        write_frame(fout_all, symbols, lattice, pos, frc, E, img, step)
+                        write_frame(fout_all, symbols, lattice, pos, frc_use, E_use, img, step)
                         n_all += 1
                         if not args.no_split:
                             if img in test_images:
-                                write_frame(fout_test, symbols, lattice, pos, frc, E, img, step)
+                                write_frame(fout_test, symbols, lattice, pos, frc_use, E_use, img, step)
                                 n_test += 1
                             elif img in val_images:
-                                write_frame(fout_val, symbols, lattice, pos, frc, E, img, step)
+                                write_frame(fout_val, symbols, lattice, pos, frc_use, E_use, img, step)
                                 n_val += 1
                             else:
-                                write_frame(fout_train, symbols, lattice, pos, frc, E, img, step)
+                                write_frame(fout_train, symbols, lattice, pos, frc_use, E_use, img, step)
                                 n_train += 1
                 last_buf = (step, E, pos, frc)
 
             if last_buf is not None:
                 step, E, pos, frc = last_buf
                 if args.last_only:
+                    E_use = E
+                    frc_use = frc
+                    if args.remove_d3:
+                        E_use, frc_use, _ = subtract_d3_correction(
+                            symbols,
+                            lattice,
+                            pos,
+                            frc,
+                            E,
+                            method=args.d3_method,
+                            damping=args.d3_damping,
+                            params_tweaks=d3_params_tweaks,
+                            cache_api=args.d3_cache_api,
+                        )
                     count_img = 1
                     if not args.count_only:
-                        write_frame(fout_all, symbols, lattice, pos, frc, E, img, step)
+                        write_frame(fout_all, symbols, lattice, pos, frc_use, E_use, img, step)
                         n_all += 1
                         if not args.no_split:
                             if img in test_images:
-                                write_frame(fout_test, symbols, lattice, pos, frc, E, img, step)
+                                write_frame(fout_test, symbols, lattice, pos, frc_use, E_use, img, step)
                                 n_test += 1
                             elif img in val_images:
-                                write_frame(fout_val, symbols, lattice, pos, frc, E, img, step)
+                                write_frame(fout_val, symbols, lattice, pos, frc_use, E_use, img, step)
                                 n_val += 1
                             else:
-                                write_frame(fout_train, symbols, lattice, pos, frc, E, img, step)
+                                write_frame(fout_train, symbols, lattice, pos, frc_use, E_use, img, step)
                                 n_train += 1
                 else:
                     # If striding, always include final step.
                     if args.stride > 1 and step not in wrote_steps:
+                        E_use = E
+                        frc_use = frc
+                        if args.remove_d3:
+                            E_use, frc_use, _ = subtract_d3_correction(
+                                symbols,
+                                lattice,
+                                pos,
+                                frc,
+                                E,
+                                method=args.d3_method,
+                                damping=args.d3_damping,
+                                params_tweaks=d3_params_tweaks,
+                                cache_api=args.d3_cache_api,
+                            )
                         count_img += 1
                         if not args.count_only:
-                            write_frame(fout_all, symbols, lattice, pos, frc, E, img, step)
+                            write_frame(fout_all, symbols, lattice, pos, frc_use, E_use, img, step)
                             n_all += 1
                             if not args.no_split:
                                 if img in test_images:
-                                    write_frame(fout_test, symbols, lattice, pos, frc, E, img, step)
+                                    write_frame(fout_test, symbols, lattice, pos, frc_use, E_use, img, step)
                                     n_test += 1
                                 elif img in val_images:
-                                    write_frame(fout_val, symbols, lattice, pos, frc, E, img, step)
+                                    write_frame(fout_val, symbols, lattice, pos, frc_use, E_use, img, step)
                                     n_val += 1
                                 else:
-                                    write_frame(fout_train, symbols, lattice, pos, frc, E, img, step)
+                                    write_frame(fout_train, symbols, lattice, pos, frc_use, E_use, img, step)
                                     n_train += 1
 
             per_image[img] = count_img
@@ -263,4 +400,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

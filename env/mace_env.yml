@@ -9,7 +9,7 @@ dependencies:
   - dftd3-python
   - simple-dftd3
   - pip:
-      - mace-torch
+      - mace-torch==0.3.15
       - upet
       - orb-models
       - pynanoflann @ git+https://github.com/dwastberg/pynanoflann@af434039ae14bedcbb838a7808924d6689274168
