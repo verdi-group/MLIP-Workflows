@@ -36,42 +36,6 @@ pip install -e .
 Thats probably all you need to read from here :). 
 
 > NOTE FOR MATGL ENVIRONMENT INSTALLATION: at that time DGL (a matgl backend that governed model tensor operation) was not supported and thus had to be manually installed since the matgl models had not been shifted from dgl to pytorch (PyG) yet. This was january 2026, and may have since changed. **SO IF YOU ARE GETTING SOME KIND OF BACKEND ERROR FOR MATGL SPECIFICALLY** read their updates [here](https://matgl.ai/#major-update-v200-nov-12-2025). You should be able to check for which backend (PyG or DGL) your model uses and install that. If the installation is messy and not working, i found these tips helpful:
-
 1. install the desired version of torch first 
 2. install the required backend for matgl first 
 3. install matgl
-
-NOTES FOR DEV: 
-of 31/01/2026: Checked mace_environment.yml, matgl_env and it loaded all calc objects
-
-For mace:
-```    
-conda create --name mace_env python=3.10 pip 
-pip install mace-torch 
-pip install phonopy
-```
-
-for mattersim:
-
-```
-conda create --name mattersim_env python=3.10 pip -y 
-pip install mattersim 
-```
-
-for orb-models: 
-
-```
-conda create --name orb_env python=3.10 pip -y
-pip install orb-models
-pip install "pynanoflann@git+https://github.com/dwastberg/pynanoflann#egg=af434039ae14bedcbb838a7808924d6689274168"
-```
-
-for pet-mad:
-
-```
-conda create --name petmad_env python=3.10 pip -y
-pip install upet 
-```
-
-
-
