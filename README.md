@@ -1,6 +1,6 @@
 # mlip-workflows
 
-MLIP command line workflows for phonons, NEB/MEP, ShakeNBreak giving vasp-improvable results (for computational efficiency) for 5 model families are supported by this package. Furthermore, mlip fine-tuning is supported fully for MACE and ORB model families, with petmad coming soon. The former two support LoRA and REPLAY fine tuning.
+MLIP command line workflows for phonons, NEB/MEP, ShakeNBreak giving vasp-improvable results (for computational efficiency) for the 6 model families supported by this package. In addition, mlip fine-tuning is supported fully for MACE and ORB model families, with petmad coming soon. The former two support LoRA and REPLAY fine tuning.
 
 ## Workflows
 
